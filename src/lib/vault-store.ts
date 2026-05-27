@@ -1,0 +1,117 @@
+import { useEffect, useState, useCallback } from "react";
+import { SEED_MODES, type Mode } from "./modes-data";
+
+const MODES_KEY = "pcc.modes.v1";
+const FAVS_KEY = "pcc.favorites.v1";
+
+export interface FavoriteStack {
+  id: string;
+  name: string;
+  note?: string;
+  modeIds: string[];
+  createdAt: number;
+}
+
+function read<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function write<T>(key: string, value: T) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(key, JSON.stringify(value));
+  window.dispatchEvent(new CustomEvent("pcc:store", { detail: { key } }));
+}
+
+function loadModes(): Mode[] {
+  const stored = read<Mode[] | null>(MODES_KEY, null);
+  if (!stored || stored.length === 0) {
+    write(MODES_KEY, SEED_MODES);
+    return SEED_MODES;
+  }
+  return stored;
+}
+
+export function useModes() {
+  const [modes, setModes] = useState<Mode[]>(() =>
+    typeof window === "undefined" ? SEED_MODES : loadModes(),
+  );
+
+  useEffect(() => {
+    setModes(loadModes());
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail || detail.key === MODES_KEY) setModes(loadModes());
+    };
+    window.addEventListener("pcc:store", onChange);
+    window.addEventListener("storage", onChange);
+    return () => {
+      window.removeEventListener("pcc:store", onChange);
+      window.removeEventListener("storage", onChange);
+    };
+  }, []);
+
+  const upsertMode = useCallback((mode: Mode) => {
+    const current = loadModes();
+    const idx = current.findIndex((m) => m.id === mode.id);
+    if (idx >= 0) current[idx] = mode;
+    else current.push(mode);
+    write(MODES_KEY, current);
+  }, []);
+
+  const deleteMode = useCallback((id: string) => {
+    write(MODES_KEY, loadModes().filter((m) => m.id !== id));
+  }, []);
+
+  const resetModes = useCallback(() => {
+    write(MODES_KEY, SEED_MODES);
+  }, []);
+
+  return { modes, upsertMode, deleteMode, resetModes };
+}
+
+export function useFavorites() {
+  const [favorites, setFavorites] = useState<FavoriteStack[]>(() =>
+    typeof window === "undefined" ? [] : read<FavoriteStack[]>(FAVS_KEY, []),
+  );
+
+  useEffect(() => {
+    setFavorites(read<FavoriteStack[]>(FAVS_KEY, []));
+    const onChange = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail || detail.key === FAVS_KEY) {
+        setFavorites(read<FavoriteStack[]>(FAVS_KEY, []));
+      }
+    };
+    window.addEventListener("pcc:store", onChange);
+    window.addEventListener("storage", onChange);
+    return () => {
+      window.removeEventListener("pcc:store", onChange);
+      window.removeEventListener("storage", onChange);
+    };
+  }, []);
+
+  const addFavorite = useCallback((fav: Omit<FavoriteStack, "id" | "createdAt">) => {
+    const next: FavoriteStack = {
+      ...fav,
+      id: crypto.randomUUID(),
+      createdAt: Date.now(),
+    };
+    write(FAVS_KEY, [next, ...read<FavoriteStack[]>(FAVS_KEY, [])]);
+  }, []);
+
+  const deleteFavorite = useCallback((id: string) => {
+    write(FAVS_KEY, read<FavoriteStack[]>(FAVS_KEY, []).filter((f) => f.id !== id));
+  }, []);
+
+  return { favorites, addFavorite, deleteFavorite };
+}
+
+export function makeId(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || crypto.randomUUID();
+}

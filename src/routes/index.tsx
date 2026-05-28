@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,9 @@ import { useFavorites, useModes } from "@/lib/vault-store";
 import { recommend, type Recommendation } from "@/lib/recommend";
 import { CopyButton } from "@/components/CopyButton";
 import { CategoryTag, IntensityPill } from "@/components/ModeBadge";
-import { Radar, Zap, Ban, Star } from "lucide-react";
+import { Radar, Zap, Ban, Star, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
+import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 
 export const Route = createFileRoute("/")({
   head: () => ({

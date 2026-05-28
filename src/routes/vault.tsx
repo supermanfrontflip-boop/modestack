@@ -25,10 +25,50 @@ export const Route = createFileRoute("/vault")({
 });
 
 function VaultPage() {
-  const { modes, upsertMode, deleteMode, resetModes } = useModes();
+  const { modes, upsertMode, deleteMode, resetModes, replaceModes, mergeModes } = useModes();
   const [q, setQ] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Mode | undefined>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingImport, setPendingImport] = useState<{ modes: Mode[]; errors: string[] } | null>(null);
+
+  const onExport = () => {
+    const csv = modesToCSV(modes);
+    const date = new Date().toISOString().slice(0, 10);
+    downloadCSV(`prompt-vault-${date}.csv`, csv);
+    toast.success(`Exported ${modes.length} modes`);
+  };
+
+  const onImportClick = () => fileInputRef.current?.click();
+
+  const onFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const result = csvToModes(text);
+      if (result.modes.length === 0) {
+        toast.error(result.errors[0] || "No valid modes found in CSV");
+        return;
+      }
+      setPendingImport(result);
+    } catch (err) {
+      toast.error("Could not read file");
+    }
+  };
+
+  const applyImport = (mode: "merge" | "replace") => {
+    if (!pendingImport) return;
+    if (mode === "replace") {
+      replaceModes(pendingImport.modes);
+      toast.success(`Replaced vault with ${pendingImport.modes.length} modes`);
+    } else {
+      const { added, updated } = mergeModes(pendingImport.modes);
+      toast.success(`Imported ${added} new, updated ${updated}`);
+    }
+    setPendingImport(null);
+  };
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();

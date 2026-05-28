@@ -100,12 +100,32 @@ function HomePage() {
         <label className="block text-base text-foreground">
           What are you trying to accomplish?
         </label>
-        <Textarea
-          value={situation}
-          onChange={(e) => setSituation(e.target.value)}
-          placeholder="Describe the mission, the constraint, or the question…"
-          className="min-h-[110px] bg-input/60 border-border focus-visible:ring-primary"
-        />
+        <div className="relative">
+          <Textarea
+            value={situation}
+            onChange={(e) => setSituation(e.target.value)}
+            placeholder="Describe the mission, the constraint, or the question…"
+            className="min-h-[110px] bg-input/60 border-border focus-visible:ring-primary pr-12"
+          />
+          <button
+            type="button"
+            onClick={toggleMic}
+            aria-label={listening ? "Stop voice input" : "Start voice input"}
+            aria-pressed={listening}
+            className={`absolute top-2 right-2 inline-flex items-center justify-center h-9 w-9 rounded-md border transition-colors ${
+              listening
+                ? "border-destructive/60 bg-destructive/10 text-destructive animate-pulse"
+                : "border-border bg-muted/40 text-muted-foreground hover:text-primary hover:border-primary/50"
+            }`}
+          >
+            {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </button>
+          {listening && (
+            <div className="absolute bottom-2 left-3 text-[10px] mono tracking-widest text-destructive">
+              ● REC — listening…
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap gap-1.5">
           {EXAMPLES.map((ex) => (
             <button

@@ -224,6 +224,36 @@ function VaultPage() {
         initial={editing}
         onSave={upsertMode}
       />
+
+      <Dialog open={!!pendingImport} onOpenChange={(o) => !o && setPendingImport(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="mono tracking-widest text-primary">IMPORT CSV</DialogTitle>
+            <DialogDescription>
+              Found <span className="mono text-foreground">{pendingImport?.modes.length ?? 0}</span> mode(s) in the file.
+              Choose how to apply them.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingImport && pendingImport.errors.length > 0 && (
+            <div className="text-xs text-destructive space-y-1 max-h-32 overflow-auto">
+              {pendingImport.errors.map((e, i) => <div key={i}>• {e}</div>)}
+            </div>
+          )}
+          <div className="text-xs text-muted-foreground space-y-1">
+            <div><span className="mono text-foreground">Merge</span> — add new and update existing by id.</div>
+            <div><span className="mono text-foreground">Replace</span> — overwrite your entire vault.</div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setPendingImport(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => applyImport("replace")} className="mono tracking-wider">
+              REPLACE
+            </Button>
+            <Button onClick={() => applyImport("merge")} className="mono tracking-wider">
+              MERGE
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

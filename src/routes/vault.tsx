@@ -106,6 +106,12 @@ function VaultPage() {
           <Button onClick={openNew} className="flex-1 mono tracking-wider">
             <Plus className="h-4 w-4 mr-1.5" /> NEW MODE
           </Button>
+          <Button variant="outline" size="icon" onClick={onImportClick} title="Import CSV">
+            <Upload className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={onExport} title="Export CSV">
+            <Download className="h-4 w-4" />
+          </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="icon" title="Reset to seed">
@@ -128,6 +134,13 @@ function VaultPage() {
             </AlertDialogContent>
           </AlertDialog>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={onFileChosen}
+        />
         <div className="text-[10px] mono tracking-widest text-muted-foreground">
           {filtered.length} / {modes.length} MODES
         </div>

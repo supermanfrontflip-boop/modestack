@@ -1,16 +1,18 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useModes } from "@/lib/vault-store";
 import { CopyButton } from "@/components/CopyButton";
 import { CategoryTag, IntensityPill } from "@/components/ModeBadge";
 import { ModeEditorDialog } from "@/components/ModeEditorDialog";
 import type { Mode } from "@/lib/modes-data";
-import { Pencil, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
+import { Download, Pencil, Plus, RotateCcw, Search, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { csvToModes, downloadCSV, modesToCSV } from "@/lib/csv";
 
 export const Route = createFileRoute("/vault")({
   head: () => ({

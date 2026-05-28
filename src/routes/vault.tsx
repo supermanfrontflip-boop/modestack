@@ -1,16 +1,18 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useModes } from "@/lib/vault-store";
 import { CopyButton } from "@/components/CopyButton";
 import { CategoryTag, IntensityPill } from "@/components/ModeBadge";
 import { ModeEditorDialog } from "@/components/ModeEditorDialog";
 import type { Mode } from "@/lib/modes-data";
-import { Pencil, Plus, RotateCcw, Search, Trash2 } from "lucide-react";
+import { Download, Pencil, Plus, RotateCcw, Search, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { csvToModes, downloadCSV, modesToCSV } from "@/lib/csv";
 
 export const Route = createFileRoute("/vault")({
   head: () => ({
@@ -23,10 +25,50 @@ export const Route = createFileRoute("/vault")({
 });
 
 function VaultPage() {
-  const { modes, upsertMode, deleteMode, resetModes } = useModes();
+  const { modes, upsertMode, deleteMode, resetModes, replaceModes, mergeModes } = useModes();
   const [q, setQ] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Mode | undefined>();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [pendingImport, setPendingImport] = useState<{ modes: Mode[]; errors: string[] } | null>(null);
+
+  const onExport = () => {
+    const csv = modesToCSV(modes);
+    const date = new Date().toISOString().slice(0, 10);
+    downloadCSV(`prompt-vault-${date}.csv`, csv);
+    toast.success(`Exported ${modes.length} modes`);
+  };
+
+  const onImportClick = () => fileInputRef.current?.click();
+
+  const onFileChosen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const result = csvToModes(text);
+      if (result.modes.length === 0) {
+        toast.error(result.errors[0] || "No valid modes found in CSV");
+        return;
+      }
+      setPendingImport(result);
+    } catch (err) {
+      toast.error("Could not read file");
+    }
+  };
+
+  const applyImport = (mode: "merge" | "replace") => {
+    if (!pendingImport) return;
+    if (mode === "replace") {
+      replaceModes(pendingImport.modes);
+      toast.success(`Replaced vault with ${pendingImport.modes.length} modes`);
+    } else {
+      const { added, updated } = mergeModes(pendingImport.modes);
+      toast.success(`Imported ${added} new, updated ${updated}`);
+    }
+    setPendingImport(null);
+  };
 
   const filtered = useMemo(() => {
     const t = q.trim().toLowerCase();
@@ -64,6 +106,12 @@ function VaultPage() {
           <Button onClick={openNew} className="flex-1 mono tracking-wider">
             <Plus className="h-4 w-4 mr-1.5" /> NEW MODE
           </Button>
+          <Button variant="outline" size="icon" onClick={onImportClick} title="Import CSV">
+            <Upload className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={onExport} title="Export CSV">
+            <Download className="h-4 w-4" />
+          </Button>
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="icon" title="Reset to seed">
@@ -86,6 +134,13 @@ function VaultPage() {
             </AlertDialogContent>
           </AlertDialog>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={onFileChosen}
+        />
         <div className="text-[10px] mono tracking-widest text-muted-foreground">
           {filtered.length} / {modes.length} MODES
         </div>
@@ -169,6 +224,36 @@ function VaultPage() {
         initial={editing}
         onSave={upsertMode}
       />
+
+      <Dialog open={!!pendingImport} onOpenChange={(o) => !o && setPendingImport(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="mono tracking-widest text-primary">IMPORT CSV</DialogTitle>
+            <DialogDescription>
+              Found <span className="mono text-foreground">{pendingImport?.modes.length ?? 0}</span> mode(s) in the file.
+              Choose how to apply them.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingImport && pendingImport.errors.length > 0 && (
+            <div className="text-xs text-destructive space-y-1 max-h-32 overflow-auto">
+              {pendingImport.errors.map((e, i) => <div key={i}>• {e}</div>)}
+            </div>
+          )}
+          <div className="text-xs text-muted-foreground space-y-1">
+            <div><span className="mono text-foreground">Merge</span> — add new and update existing by id.</div>
+            <div><span className="mono text-foreground">Replace</span> — overwrite your entire vault.</div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setPendingImport(null)}>Cancel</Button>
+            <Button variant="outline" onClick={() => applyImport("replace")} className="mono tracking-wider">
+              REPLACE
+            </Button>
+            <Button onClick={() => applyImport("merge")} className="mono tracking-wider">
+              MERGE
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

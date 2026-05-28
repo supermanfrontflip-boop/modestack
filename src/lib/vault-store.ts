@@ -72,7 +72,25 @@ export function useModes() {
     write(MODES_KEY, SEED_MODES);
   }, []);
 
-  return { modes, upsertMode, deleteMode, resetModes };
+  const replaceModes = useCallback((next: Mode[]) => {
+    write(MODES_KEY, next);
+  }, []);
+
+  const mergeModes = useCallback((incoming: Mode[]) => {
+    const current = loadModes();
+    const byId = new Map(current.map((m) => [m.id, m]));
+    let added = 0;
+    let updated = 0;
+    for (const m of incoming) {
+      if (byId.has(m.id)) updated++;
+      else added++;
+      byId.set(m.id, m);
+    }
+    write(MODES_KEY, Array.from(byId.values()));
+    return { added, updated };
+  }, []);
+
+  return { modes, upsertMode, deleteMode, resetModes, replaceModes, mergeModes };
 }
 
 export function useFavorites() {

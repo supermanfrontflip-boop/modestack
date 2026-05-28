@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,9 @@ import { useFavorites, useModes } from "@/lib/vault-store";
 import { recommend, type Recommendation } from "@/lib/recommend";
 import { CopyButton } from "@/components/CopyButton";
 import { CategoryTag, IntensityPill } from "@/components/ModeBadge";
-import { Radar, Zap, Ban, Star } from "lucide-react";
+import { Radar, Zap, Ban, Star, Mic, MicOff } from "lucide-react";
 import { toast } from "sonner";
+import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -35,6 +36,27 @@ function HomePage() {
   const [rec, setRec] = useState<Recommendation | null>(null);
   const [saveOpen, setSaveOpen] = useState(false);
   const [favName, setFavName] = useState("");
+  const baseRef = useRef("");
+
+  const { listening, supported, start, stop } = useSpeechRecognition((text, isFinal) => {
+    const base = baseRef.current;
+    const joined = base ? `${base.replace(/\s+$/, "")} ${text}` : text;
+    setSituation(joined);
+    if (isFinal) baseRef.current = joined + " ";
+  });
+
+  const toggleMic = () => {
+    if (listening) {
+      stop();
+      return;
+    }
+    if (!supported) {
+      toast.error("Voice input not supported in this browser");
+      return;
+    }
+    baseRef.current = situation;
+    start();
+  };
 
   const canSubmit = situation.trim().length > 2;
 
@@ -78,12 +100,32 @@ function HomePage() {
         <label className="block text-base text-foreground">
           What are you trying to accomplish?
         </label>
-        <Textarea
-          value={situation}
-          onChange={(e) => setSituation(e.target.value)}
-          placeholder="Describe the mission, the constraint, or the question…"
-          className="min-h-[110px] bg-input/60 border-border focus-visible:ring-primary"
-        />
+        <div className="relative">
+          <Textarea
+            value={situation}
+            onChange={(e) => setSituation(e.target.value)}
+            placeholder="Describe the mission, the constraint, or the question…"
+            className="min-h-[110px] bg-input/60 border-border focus-visible:ring-primary pr-12"
+          />
+          <button
+            type="button"
+            onClick={toggleMic}
+            aria-label={listening ? "Stop voice input" : "Start voice input"}
+            aria-pressed={listening}
+            className={`absolute top-2 right-2 inline-flex items-center justify-center h-9 w-9 rounded-md border transition-colors ${
+              listening
+                ? "border-destructive/60 bg-destructive/10 text-destructive animate-pulse"
+                : "border-border bg-muted/40 text-muted-foreground hover:text-primary hover:border-primary/50"
+            }`}
+          >
+            {listening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </button>
+          {listening && (
+            <div className="absolute bottom-2 left-3 text-[10px] mono tracking-widest text-destructive">
+              ● REC — listening…
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap gap-1.5">
           {EXAMPLES.map((ex) => (
             <button

@@ -36,6 +36,27 @@ function HomePage() {
   const [rec, setRec] = useState<Recommendation | null>(null);
   const [saveOpen, setSaveOpen] = useState(false);
   const [favName, setFavName] = useState("");
+  const baseRef = useRef("");
+
+  const { listening, supported, start, stop } = useSpeechRecognition((text, isFinal) => {
+    const base = baseRef.current;
+    const joined = base ? `${base.replace(/\s+$/, "")} ${text}` : text;
+    setSituation(joined);
+    if (isFinal) baseRef.current = joined + " ";
+  });
+
+  const toggleMic = () => {
+    if (listening) {
+      stop();
+      return;
+    }
+    if (!supported) {
+      toast.error("Voice input not supported in this browser");
+      return;
+    }
+    baseRef.current = situation;
+    start();
+  };
 
   const canSubmit = situation.trim().length > 2;
 

@@ -38,11 +38,12 @@ function HomePage() {
   const [favName, setFavName] = useState("");
   const baseRef = useRef("");
 
-  const { listening, supported, start, stop } = useSpeechRecognition((text, isFinal) => {
+  const { listening, supported, start, stop } = useSpeechRecognition((sessionText) => {
     const base = baseRef.current;
-    const joined = base ? `${base.replace(/\s+$/, "")} ${text}` : text;
+    const joined = base
+      ? `${base.replace(/\s+$/, "")}${sessionText ? " " + sessionText : ""}`
+      : sessionText;
     setSituation(joined);
-    if (isFinal) baseRef.current = joined + " ";
   });
 
   const toggleMic = () => {

@@ -1,10 +1,45 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type SR = any;
+type SpeechSegment = { text: string; isFinal: boolean };
 
 function getSpeechRecognition(): any | null {
   if (typeof window === "undefined") return null;
   return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
+}
+
+function normalizeSpeechText(text: string) {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function mergeOverlappingSpeechParts(parts: string[]) {
+  const mergedWords: string[] = [];
+
+  for (const part of parts) {
+    const words = normalizeSpeechText(part).split(" ").filter(Boolean);
+    if (words.length === 0) continue;
+
+    if (mergedWords.length === 0) {
+      mergedWords.push(...words);
+      continue;
+    }
+
+    const maxOverlap = Math.min(mergedWords.length, words.length);
+    let overlap = 0;
+
+    for (let size = maxOverlap; size > 0; size--) {
+      const existingTail = mergedWords.slice(-size).join(" ").toLowerCase();
+      const incomingHead = words.slice(0, size).join(" ").toLowerCase();
+      if (existingTail === incomingHead) {
+        overlap = size;
+        break;
+      }
+    }
+
+    mergedWords.push(...words.slice(overlap));
+  }
+
+  return mergedWords.join(" ");
 }
 
 /**
@@ -17,7 +52,7 @@ export function useSpeechRecognition(onTranscript: (sessionText: string, isFinal
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(false);
   const recogRef = useRef<SR | null>(null);
-  const finalRef = useRef("");
+  const segmentsRef = useRef<Map<number, SpeechSegment>>(new Map());
   const cbRef = useRef(onTranscript);
   cbRef.current = onTranscript;
 
@@ -33,22 +68,20 @@ export function useSpeechRecognition(onTranscript: (sessionText: string, isFinal
     r.continuous = true;
     r.interimResults = true;
     r.lang = navigator.language || "en-US";
-    finalRef.current = "";
+    segmentsRef.current.clear();
     r.onresult = (event: any) => {
-      // Rebuild the full transcript from scratch each event so we never
-      // double-count words that the engine re-emits across interim updates
-      // (common on Android Chrome).
-      let finalText = "";
-      let interimText = "";
       for (let i = 0; i < event.results.length; i++) {
         const res = event.results[i];
-        const t = res[0]?.transcript ?? "";
-        if (res.isFinal) finalText += t;
-        else interimText += t;
+        const text = normalizeSpeechText(res[0]?.transcript ?? "");
+        if (text) segmentsRef.current.set(i, { text, isFinal: res.isFinal });
       }
-      finalRef.current = finalText;
-      const combined = (finalText + " " + interimText).replace(/\s+/g, " ").trim();
-      cbRef.current(combined, !interimText);
+
+      const segments = [...segmentsRef.current.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([, segment]) => segment);
+      const combined = mergeOverlappingSpeechParts(segments.map((segment) => segment.text));
+      const hasInterim = segments.some((segment) => !segment.isFinal);
+      cbRef.current(combined, !hasInterim);
     };
     r.onend = () => setListening(false);
     r.onerror = () => setListening(false);

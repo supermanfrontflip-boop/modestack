@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useFavorites, useModes } from "@/lib/vault-store";
-import { recommend, type Recommendation } from "@/lib/recommend";
+import { recommend, ROLE_LABEL, type Recommendation } from "@/lib/recommend";
 import { CopyButton } from "@/components/CopyButton";
 import { CategoryTag, IntensityPill } from "@/components/ModeBadge";
 import { Radar, Zap, Ban, Star, Mic, MicOff } from "lucide-react";

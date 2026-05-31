@@ -150,6 +150,8 @@ function HomePage() {
 
       {rec && (
         <section className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <ConfidenceMeter value={rec.confidence} />
+
           <ModeCard label="PRIMARY MODE" mode={rec.primary} accent="primary" />
 
           {rec.supporting.length > 0 && (
@@ -162,6 +164,21 @@ function HomePage() {
               </div>
             </div>
           )}
+
+          <div className="hud-panel p-4 space-y-3">
+            <SectionLabel>WHY THESE MODES WORK TOGETHER</SectionLabel>
+            <ul className="space-y-2">
+              {rec.team.map((member, i) => (
+                <li key={member.mode.id} className="text-sm text-foreground/90 leading-relaxed">
+                  <span className="mono text-primary">{member.mode.mode}</span>{" "}
+                  <span className="text-[10px] mono tracking-widest text-muted-foreground">
+                    [{i === 0 ? "PRIMARY" : "SUPPORT"} · {ROLE_LABEL[member.role].toUpperCase()}]
+                  </span>
+                  <div className="text-xs text-foreground/80 mt-0.5">{member.contribution}.</div>
+                </li>
+              ))}
+            </ul>
+          </div>
 
           {rec.avoid && (
             <div className="hud-panel p-3 border-destructive/40">

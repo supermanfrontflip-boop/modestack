@@ -252,6 +252,25 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+function ConfidenceMeter({ value }: { value: number }) {
+  const tier = value >= 80 ? "HIGH" : value >= 55 ? "MEDIUM" : "LOW";
+  const color =
+    value >= 80 ? "bg-primary" : value >= 55 ? "bg-yellow-400" : "bg-destructive";
+  return (
+    <div className="hud-panel p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <SectionLabel>RECOMMENDATION CONFIDENCE</SectionLabel>
+        <div className="text-sm mono text-foreground">
+          {value}% <span className="text-[10px] text-muted-foreground tracking-widest">· {tier}</span>
+        </div>
+      </div>
+      <div className="h-1.5 w-full bg-muted/40 rounded-sm overflow-hidden">
+        <div className={`h-full ${color} transition-all`} style={{ width: `${value}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function ModeCard({
   mode,
   label,

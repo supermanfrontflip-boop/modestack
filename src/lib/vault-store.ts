@@ -34,6 +34,14 @@ function loadModes(): Mode[] {
     write(MODES_KEY, SEED_MODES);
     return SEED_MODES;
   }
+  // Merge any new seed modes that aren't in storage yet (by id)
+  const ids = new Set(stored.map((m) => m.id));
+  const missing = SEED_MODES.filter((m) => !ids.has(m.id));
+  if (missing.length) {
+    const merged = [...stored, ...missing];
+    write(MODES_KEY, merged);
+    return merged;
+  }
   return stored;
 }
 

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useFavorites, useModes } from "@/lib/vault-store";
-import { recommend, type Recommendation } from "@/lib/recommend";
+import { recommend, ROLE_LABEL, type Recommendation } from "@/lib/recommend";
 import { CopyButton } from "@/components/CopyButton";
 import { CategoryTag, IntensityPill } from "@/components/ModeBadge";
 import { Radar, Zap, Ban, Star, Mic, MicOff } from "lucide-react";
@@ -150,6 +150,8 @@ function HomePage() {
 
       {rec && (
         <section className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <ConfidenceMeter value={rec.confidence} />
+
           <ModeCard label="PRIMARY MODE" mode={rec.primary} accent="primary" />
 
           {rec.supporting.length > 0 && (
@@ -162,6 +164,21 @@ function HomePage() {
               </div>
             </div>
           )}
+
+          <div className="hud-panel p-4 space-y-3">
+            <SectionLabel>WHY THESE MODES WORK TOGETHER</SectionLabel>
+            <ul className="space-y-2">
+              {rec.team.map((member, i) => (
+                <li key={member.mode.id} className="text-sm text-foreground/90 leading-relaxed">
+                  <span className="mono text-primary">{member.mode.mode}</span>{" "}
+                  <span className="text-[10px] mono tracking-widest text-muted-foreground">
+                    [{i === 0 ? "PRIMARY" : "SUPPORT"} · {ROLE_LABEL[member.role].toUpperCase()}]
+                  </span>
+                  <div className="text-xs text-foreground/80 mt-0.5">{member.contribution}.</div>
+                </li>
+              ))}
+            </ul>
+          </div>
 
           {rec.avoid && (
             <div className="hud-panel p-3 border-destructive/40">
@@ -231,6 +248,25 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="text-[10px] mono tracking-[0.25em] text-muted-foreground">
       // {children}
+    </div>
+  );
+}
+
+function ConfidenceMeter({ value }: { value: number }) {
+  const tier = value >= 80 ? "HIGH" : value >= 55 ? "MEDIUM" : "LOW";
+  const color =
+    value >= 80 ? "bg-primary" : value >= 55 ? "bg-yellow-400" : "bg-destructive";
+  return (
+    <div className="hud-panel p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <SectionLabel>RECOMMENDATION CONFIDENCE</SectionLabel>
+        <div className="text-sm mono text-foreground">
+          {value}% <span className="text-[10px] text-muted-foreground tracking-widest">· {tier}</span>
+        </div>
+      </div>
+      <div className="h-1.5 w-full bg-muted/40 rounded-sm overflow-hidden">
+        <div className={`h-full ${color} transition-all`} style={{ width: `${value}%` }} />
+      </div>
     </div>
   );
 }

@@ -1,12 +1,63 @@
 import type { Mode } from "./modes-data";
 
+export type CognitiveRole = "perspective" | "execution" | "risk";
+
+export interface TeamMember {
+  mode: Mode;
+  role: CognitiveRole;
+  contribution: string;
+}
+
 export interface Recommendation {
   primary: Mode;
+  primaryRole: CognitiveRole;
+  primaryContribution: string;
   supporting: Mode[];
+  team: TeamMember[]; // primary + supporting with role notes
   avoid: Mode | null;
   explanation: string;
   combinedPrompt: string;
+  confidence: number; // 0-100
 }
+
+// ---- Cognitive role registry ------------------------------------------------------
+// Each mode has a primary cognitive role and a short, mode-specific contribution
+// note used in the "Why These Modes Work Together" section.
+
+interface RoleSpec {
+  role: CognitiveRole;
+  contribution: string;
+}
+
+const ROLE_MAP: Record<string, RoleSpec> = {
+  owl:        { role: "perspective", contribution: "wide-angle analysis that surfaces what is being missed" },
+  alien:      { role: "perspective", contribution: "outsider reframing that breaks default assumptions" },
+  architect:  { role: "perspective", contribution: "structural coherence across the whole system" },
+  shadow:     { role: "risk",        contribution: "quiet pattern collection that surfaces hidden risks" },
+  raven:      { role: "risk",        contribution: "contrarian stress-test that hunts weak points" },
+  hawk:       { role: "execution",   contribution: "single-target precision for the next concrete action" },
+  apex:       { role: "execution",   contribution: "no-compromise quality bar on the final output" },
+  captain:    { role: "execution",   contribution: "decisive command voice that commits to a direction" },
+  snail:      { role: "execution",   contribution: "step-by-step pacing so nothing gets glossed over" },
+  clear:      { role: "execution",   contribution: "plain-language clarity for the reader" },
+  glove:      { role: "execution",   contribution: "firm boundary-holding without admissions or waivers" },
+  diplomat:   { role: "execution",   contribution: "respectful, measured tone that de-escalates" },
+  "gomer-pyle": { role: "perspective", contribution: "folksy comedic voice for satire and parody" },
+};
+
+function roleOf(mode: Mode): RoleSpec {
+  return ROLE_MAP[mode.id] ?? { role: "execution", contribution: mode.purpose.toLowerCase() };
+}
+
+const ROLE_ORDER: CognitiveRole[] = ["perspective", "execution", "risk"];
+
+const ROLE_LABEL: Record<CognitiveRole, string> = {
+  perspective: "expands perspective",
+  execution: "improves execution quality",
+  risk: "improves risk detection and consistency",
+};
+
+// ---- Scoring ----------------------------------------------------------------------
 
 interface Scored {
   mode: Mode;
@@ -27,7 +78,7 @@ function scoreMode(mode: Mode, text: string): Scored {
   return { mode, score, hits };
 }
 
-// ---- Boundary-situation detection -------------------------------------------------
+// ---- Boundary detection -----------------------------------------------------------
 
 const BOUNDARY_SIGNALS = [
   "boundary", "boundaries", "firm", "stand firm", "not budge", "don't budge",
@@ -45,9 +96,74 @@ const AGGRESSION_OPT_IN = ["aggressive", "attack", "go hard", "pressure", "seize
 const RESET_OPT_IN = ["reset", "plain language", "simplify", "tldr", "summarize"];
 
 function detectBoundary(text: string): boolean {
-  let count = 0;
-  for (const s of BOUNDARY_SIGNALS) if (text.includes(s)) count++;
-  return count >= 1;
+  for (const s of BOUNDARY_SIGNALS) if (text.includes(s)) return true;
+  return false;
+}
+
+// ---- Team assembly ----------------------------------------------------------------
+
+/**
+ * Build a complementary team: one supporting mode per cognitive role that the
+ * primary does not already cover. Never picks the primary as a supporter, and
+ * never picks two supporters with the same role.
+ */
+function buildTeam(
+  primary: Mode,
+  scored: Scored[],
+  modes: Mode[],
+  preferredIds: string[] = [],
+): { supporting: Mode[]; team: TeamMember[] } {
+  const primaryRole = roleOf(primary).role;
+  const usedIds = new Set<string>([primary.id]);
+  const supporting: Mode[] = [];
+
+  // Roles we want to fill, in priority order, excluding the primary's role.
+  const rolesNeeded = ROLE_ORDER.filter((r) => r !== primaryRole);
+
+  const scoredById = new Map(scored.map((s) => [s.mode.id, s]));
+
+  const pickForRole = (role: CognitiveRole): Mode | null => {
+    // 1. Preferred (curated) candidates first.
+    for (const id of preferredIds) {
+      if (usedIds.has(id)) continue;
+      const m = modes.find((mm) => mm.id === id);
+      if (m && roleOf(m).role === role) return m;
+    }
+    // 2. Highest-scoring mode with this role.
+    const candidates = modes
+      .filter((m) => !usedIds.has(m.id) && roleOf(m).role === role)
+      .map((m) => scoredById.get(m.id) ?? { mode: m, score: 0, hits: [] })
+      .sort((a, b) => b.score - a.score);
+    return candidates[0]?.mode ?? null;
+  };
+
+  for (const role of rolesNeeded) {
+    const pick = pickForRole(role);
+    if (pick) {
+      supporting.push(pick);
+      usedIds.add(pick.id);
+    }
+  }
+
+  const team: TeamMember[] = [
+    { mode: primary, role: primaryRole, contribution: roleOf(primary).contribution },
+    ...supporting.map((m) => ({
+      mode: m,
+      role: roleOf(m).role,
+      contribution: roleOf(m).contribution,
+    })),
+  ];
+
+  return { supporting, team };
+}
+
+function computeConfidence(top: Scored, supporting: Mode[], rolesCovered: number): number {
+  let c = 40;
+  c += Math.min(top.score * 4, 35); // up to +35 from trigger strength
+  c += Math.min(rolesCovered, 2) * 10; // +10 per additional role covered (max 20)
+  if (supporting.length === 0) c -= 10;
+  if (top.score === 0) c -= 15;
+  return Math.max(0, Math.min(100, Math.round(c)));
 }
 
 // ---- Main -------------------------------------------------------------------------
@@ -64,176 +180,10 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   const scored = modes.map((m) => scoreMode(m, text));
   scored.sort((a, b) => b.score - a.score);
 
-  const top = scored[0].score > 0
-    ? scored[0]
-    : { mode: modes.find((m) => m.id === "owl") ?? modes[0], score: 0, hits: [] };
+  const top =
+    scored[0].score > 0
+      ? scored[0]
+      : { mode: modes.find((m) => m.id === "owl") ?? modes[0], score: 0, hits: [] };
 
-  const supporting = scored
-    .filter((s) => s.mode.id !== top.mode.id && s.score > 0)
-    .slice(0, 2)
-    .map((s) => s.mode);
-
-  if (supporting.length === 0) {
-    const stackNames = top.mode.stackWith.split(",").map((s) => s.trim().toLowerCase());
-    for (const m of modes) {
-      if (m.id === top.mode.id) continue;
-      if (stackNames.some((n) => n && m.mode.toLowerCase().includes(n.split(" ")[0]))) {
-        supporting.push(m);
-      }
-      if (supporting.length >= 2) break;
-    }
-  }
-
-  const avoid = pickAvoid(top.mode, modes);
-
-  const matched = top.hits.length
-    ? `matched signals: ${top.hits.slice(0, 4).join(", ")}`
-    : "no strong keyword signals — defaulted to a wide-angle analytical mode";
-
-  const explanation =
-    `${top.mode.mode} is primary because ${matched}. ` +
-    `It is best for ${top.mode.bestFor.toLowerCase()} ` +
-    (supporting.length
-      ? `Stack with ${supporting.map((s) => s.mode).join(" and ")} to ${supporting[0].purpose.toLowerCase()}`
-      : `Run it solo for a focused pass.`) +
-    (avoid ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
-
-  const combinedPrompt = buildCombinedPrompt(situation, top.mode, supporting);
-
-  return {
-    primary: top.mode,
-    supporting,
-    avoid,
-    explanation,
-    combinedPrompt,
-  };
-}
-
-// ---- Boundary recommendation ------------------------------------------------------
-
-function buildBoundaryRec(situation: string, text: string, modes: Mode[]): Recommendation | null {
-  const byId = (id: string) => modes.find((m) => m.id === id);
-  const glove = byId("glove");
-  if (!glove) return null; // fall back to normal flow
-
-  const wantsComedy = COMEDY_OPT_IN.some((k) => text.includes(k));
-  const wantsAggression = AGGRESSION_OPT_IN.some((k) => text.includes(k));
-  const wantsReset = RESET_OPT_IN.some((k) => text.includes(k));
-
-  // Candidate stack in priority order
-  const candidates: Array<{ id: string; reason: string }> = [
-    { id: "diplomat", reason: "respectful, measured tone" },
-    { id: "captain", reason: "procedural authority and clear command structure" },
-    { id: "snail", reason: "step-by-step detail preservation so nothing is glossed over" },
-    { id: "owl", reason: "scanning for hidden risks, admissions, and strategic wording" },
-  ];
-
-  const supporting: Mode[] = [];
-  for (const c of candidates) {
-    const m = byId(c.id);
-    if (m && supporting.length < 2) supporting.push(m);
-  }
-
-  // Determine what to avoid (only one shown, but logic notes the rest)
-  let avoid: Mode | null = null;
-  if (!wantsComedy) avoid = byId("gomer-pyle") ?? null;
-  if (!avoid && !wantsAggression) avoid = byId("hawk") ?? null;
-  if (!avoid && !wantsReset) avoid = byId("clear") ?? null;
-
-  const explanation =
-    `${glove.mode} is primary because this is a firm professional boundary situation — ` +
-    `you need to hold your position, avoid admissions, and stay procedurally correct without ` +
-    `feeding conflict. ` +
-    (supporting.length
-      ? `Stack with ${supporting.map((s) => s.mode).join(" and ")} for ` +
-        `${supporting.map((s) => candidates.find((c) => c.id === s.id)?.reason ?? s.purpose.toLowerCase()).join(" and ")}. `
-      : ``) +
-    (avoid
-      ? `Avoid ${avoid.mode} here unless you specifically want ` +
-        (avoid.id === "gomer-pyle"
-          ? "satire, comedy, fiction, lyrics, or roast writing"
-          : avoid.id === "hawk"
-            ? "aggressive opportunity seizure"
-            : avoid.id === "clear"
-              ? "a plain-language reset"
-              : avoid.avoidWhen.toLowerCase()) +
-        "."
-      : "");
-
-  const combinedPrompt = buildBoundaryPrompt(situation, glove, supporting);
-
-  return { primary: glove, supporting, avoid, explanation, combinedPrompt };
-}
-
-function buildBoundaryPrompt(situation: string, primary: Mode, supporting: Mode[]): string {
-  const lines: string[] = [];
-  lines.push(`# User Instructions`);
-  lines.push(
-    `Paste the combined prompt into your AI tool before asking it to draft the message. ` +
-      `Do not use comedy, insults, threats, or emotional language unless intentionally ` +
-      `writing fiction or satire.`,
-  );
-  lines.push("");
-  lines.push(`# Task Instructions`);
-  lines.push(`Create a message that:`);
-  lines.push(`- stays calm and professional`);
-  lines.push(`- preserves the user's position`);
-  lines.push(`- avoids unnecessary admissions`);
-  lines.push(`- uses procedural language`);
-  lines.push(`- makes a specific request`);
-  lines.push(`- escalates respectfully only if needed`);
-  lines.push(`- avoids feeding conflict`);
-  lines.push("");
-  lines.push(`# Situation`);
-  lines.push(situation.trim() || "(describe the situation here)");
-  lines.push("");
-  lines.push(`# Primary: ${primary.mode}`);
-  lines.push(primary.fullPrompt);
-  if (supporting.length) {
-    lines.push("");
-    lines.push(`# Stack`);
-    for (const s of supporting) {
-      lines.push(`- ${s.mode}: ${s.fullPrompt}`);
-    }
-  }
-  lines.push("");
-  lines.push(`# Exit`);
-  lines.push([primary, ...supporting].map((m) => m.exitPhrase).join(" "));
-  return lines.join("\n");
-}
-
-// ---- Generic helpers --------------------------------------------------------------
-
-function pickAvoid(primary: Mode, modes: Mode[]): Mode | null {
-  const opposites: Record<string, string> = {
-    Extreme: "Low",
-    High: "Low",
-    Low: "High",
-    Medium: "Extreme",
-  };
-  const target = opposites[primary.intensity];
-  const candidate = modes.find(
-    (m) => m.id !== primary.id && m.intensity === target,
-  );
-  return candidate ?? null;
-}
-
-function buildCombinedPrompt(situation: string, primary: Mode, supporting: Mode[]): string {
-  const lines: string[] = [];
-  lines.push(`# Situation`);
-  lines.push(situation.trim() || "(describe the situation here)");
-  lines.push("");
-  lines.push(`# Primary: ${primary.mode}`);
-  lines.push(primary.fullPrompt);
-  if (supporting.length) {
-    lines.push("");
-    lines.push(`# Stack`);
-    for (const s of supporting) {
-      lines.push(`- ${s.mode}: ${s.fullPrompt}`);
-    }
-  }
-  lines.push("");
-  lines.push(`# Exit`);
-  lines.push([primary, ...supporting].map((m) => m.exitPhrase).join(" "));
-  return lines.join("\n");
-}
+  const { supporting, team } = buildTeam(top.mode, scored, modes);
+  const avoid = pickAvoid(top.mode, modes, supporting);

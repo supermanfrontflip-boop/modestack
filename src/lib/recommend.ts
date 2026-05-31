@@ -187,3 +187,172 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
 
   const { supporting, team } = buildTeam(top.mode, scored, modes);
   const avoid = pickAvoid(top.mode, modes, supporting);
+
+  const primarySpec = roleOf(top.mode);
+  const rolesCovered = new Set(team.map((t) => t.role)).size - 1;
+  const confidence = computeConfidence(top, supporting, rolesCovered);
+
+  const matched = top.hits.length
+    ? `matched signals: ${top.hits.slice(0, 4).join(", ")}`
+    : "no strong keyword signals — defaulted to a wide-angle analytical mode";
+
+  const explanation =
+    `${top.mode.mode} is primary because ${matched}. ` +
+    `It is best for ${top.mode.bestFor.toLowerCase()} ` +
+    (supporting.length
+      ? `Stack with ${supporting.map((s) => s.mode).join(" and ")} so the team covers ` +
+        `${[primarySpec.role, ...supporting.map((s) => roleOf(s).role)].join(", ")}.`
+      : `Run it solo for a focused pass.`) +
+    (avoid ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
+
+  const combinedPrompt = buildCombinedPrompt(situation, top.mode, supporting);
+
+  return {
+    primary: top.mode,
+    primaryRole: primarySpec.role,
+    primaryContribution: primarySpec.contribution,
+    supporting,
+    team,
+    avoid,
+    explanation,
+    combinedPrompt,
+    confidence,
+  };
+}
+
+// ---- Boundary recommendation ------------------------------------------------------
+
+function buildBoundaryRec(situation: string, text: string, modes: Mode[]): Recommendation | null {
+  const byId = (id: string) => modes.find((m) => m.id === id);
+  const glove = byId("glove");
+  if (!glove) return null;
+
+  const wantsComedy = COMEDY_OPT_IN.some((k) => text.includes(k));
+  const wantsAggression = AGGRESSION_OPT_IN.some((k) => text.includes(k));
+  const wantsReset = RESET_OPT_IN.some((k) => text.includes(k));
+
+  const scored = modes.map((m) => scoreMode(m, text));
+
+  const preferred = ["owl", "architect", "shadow", "raven"];
+  const { supporting, team } = buildTeam(glove, scored, modes, preferred);
+
+  let avoid: Mode | null = null;
+  if (!wantsComedy) avoid = byId("gomer-pyle") ?? null;
+  if (!avoid && !wantsAggression) avoid = byId("hawk") ?? null;
+  if (!avoid && !wantsReset) avoid = byId("clear") ?? null;
+
+  const primarySpec = roleOf(glove);
+  const rolesCovered = new Set(team.map((t) => t.role)).size - 1;
+  const baseScored: Scored = { mode: glove, score: 8, hits: ["boundary signal"] };
+  const confidence = Math.min(100, computeConfidence(baseScored, supporting, rolesCovered) + 10);
+
+  const explanation =
+    `${glove.mode} is primary because this is a firm professional boundary situation — ` +
+    `you need to hold your position, avoid admissions, and stay procedurally correct without ` +
+    `feeding conflict. ` +
+    (supporting.length
+      ? `Stack with ${supporting.map((s) => s.mode).join(" and ")} so the team covers ` +
+        `${[primarySpec.role, ...supporting.map((s) => roleOf(s).role)].join(", ")}. `
+      : ``) +
+    (avoid
+      ? `Avoid ${avoid.mode} here unless you specifically want ` +
+        (avoid.id === "gomer-pyle"
+          ? "satire, comedy, fiction, lyrics, or roast writing"
+          : avoid.id === "hawk"
+            ? "aggressive opportunity seizure"
+            : avoid.id === "clear"
+              ? "a plain-language reset"
+              : avoid.avoidWhen.toLowerCase()) +
+        "."
+      : "");
+
+  const combinedPrompt = buildBoundaryPrompt(situation, glove, supporting);
+
+  return {
+    primary: glove,
+    primaryRole: primarySpec.role,
+    primaryContribution: primarySpec.contribution,
+    supporting,
+    team,
+    avoid,
+    explanation,
+    combinedPrompt,
+    confidence,
+  };
+}
+
+function buildBoundaryPrompt(situation: string, primary: Mode, supporting: Mode[]): string {
+  const lines: string[] = [];
+  lines.push(`# User Instructions`);
+  lines.push(
+    `Paste the combined prompt into your AI tool before asking it to draft the message. ` +
+      `Do not use comedy, insults, threats, or emotional language unless intentionally ` +
+      `writing fiction or satire.`,
+  );
+  lines.push("");
+  lines.push(`# Task Instructions`);
+  lines.push(`Create a message that:`);
+  lines.push(`- stays calm and professional`);
+  lines.push(`- preserves the user's position`);
+  lines.push(`- avoids unnecessary admissions`);
+  lines.push(`- uses procedural language`);
+  lines.push(`- makes a specific request`);
+  lines.push(`- escalates respectfully only if needed`);
+  lines.push(`- avoids feeding conflict`);
+  lines.push("");
+  lines.push(`# Situation`);
+  lines.push(situation.trim() || "(describe the situation here)");
+  lines.push("");
+  lines.push(`# Primary: ${primary.mode}`);
+  lines.push(primary.fullPrompt);
+  if (supporting.length) {
+    lines.push("");
+    lines.push(`# Stack`);
+    for (const s of supporting) {
+      lines.push(`- ${s.mode}: ${s.fullPrompt}`);
+    }
+  }
+  lines.push("");
+  lines.push(`# Exit`);
+  lines.push([primary, ...supporting].map((m) => m.exitPhrase).join(" "));
+  return lines.join("\n");
+}
+
+// ---- Generic helpers --------------------------------------------------------------
+
+function pickAvoid(primary: Mode, modes: Mode[], supporting: Mode[]): Mode | null {
+  const opposites: Record<string, string> = {
+    Extreme: "Low",
+    High: "Low",
+    Low: "High",
+    Medium: "Extreme",
+  };
+  const target = opposites[primary.intensity];
+  const usedIds = new Set([primary.id, ...supporting.map((s) => s.id)]);
+  const candidate = modes.find(
+    (m) => !usedIds.has(m.id) && m.intensity === target,
+  );
+  return candidate ?? null;
+}
+
+function buildCombinedPrompt(situation: string, primary: Mode, supporting: Mode[]): string {
+  const lines: string[] = [];
+  lines.push(`# Situation`);
+  lines.push(situation.trim() || "(describe the situation here)");
+  lines.push("");
+  lines.push(`# Primary: ${primary.mode}`);
+  lines.push(primary.fullPrompt);
+  if (supporting.length) {
+    lines.push("");
+    lines.push(`# Stack`);
+    for (const s of supporting) {
+      lines.push(`- ${s.mode}: ${s.fullPrompt}`);
+    }
+  }
+  lines.push("");
+  lines.push(`# Exit`);
+  lines.push([primary, ...supporting].map((m) => m.exitPhrase).join(" "));
+  return lines.join("\n");
+}
+
+export { ROLE_LABEL };

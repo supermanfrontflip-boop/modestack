@@ -150,6 +150,28 @@ function HomePage() {
 
       {rec && (
         <section className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          {rec.situationTypes.length > 0 && (
+            <div className="hud-panel hud-corner p-4 space-y-2 border-primary/40">
+              <SectionLabel>SITUATION TYPE</SectionLabel>
+              <div className="flex flex-wrap gap-1.5">
+                {rec.situationTypes.map((st, i) => (
+                  <span
+                    key={st.type}
+                    className={`mono text-xs tracking-wider px-2 py-1 rounded-sm border ${
+                      i === 0
+                        ? "border-primary/60 bg-primary/10 text-primary"
+                        : "border-border bg-muted/40 text-muted-foreground"
+                    }`}
+                  >
+                    {st.type}
+                    {i === 0 && <span className="ml-1 text-[9px] opacity-70">PRIMARY</span>}
+                  </span>
+                ))}
+              </div>
+              <p className="text-xs text-foreground/80 leading-relaxed pt-1">{rec.situationReason}</p>
+            </div>
+          )}
+
           <ConfidenceMeter value={rec.confidence} />
 
           <ModeCard label="PRIMARY MODE" mode={rec.primary} accent="primary" />

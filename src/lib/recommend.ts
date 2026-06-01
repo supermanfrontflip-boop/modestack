@@ -8,21 +8,27 @@ export interface TeamMember {
   contribution: string;
 }
 
+export interface SituationTypeMatch {
+  type: string;
+  score: number;
+  hits: string[];
+}
+
 export interface Recommendation {
   primary: Mode;
   primaryRole: CognitiveRole;
   primaryContribution: string;
   supporting: Mode[];
-  team: TeamMember[]; // primary + supporting with role notes
+  team: TeamMember[];
   avoid: Mode | null;
   explanation: string;
   combinedPrompt: string;
-  confidence: number; // 0-100
+  confidence: number;
+  situationTypes: SituationTypeMatch[]; // detected types, ranked
+  situationReason: string; // why these modes for this type
 }
 
-// ---- Cognitive role registry ------------------------------------------------------
-// Each mode has a primary cognitive role and a short, mode-specific contribution
-// note used in the "Why These Modes Work Together" section.
+// ---- Cognitive role registry ----
 
 interface RoleSpec {
   role: CognitiveRole;
@@ -49,15 +55,181 @@ function roleOf(mode: Mode): RoleSpec {
   return ROLE_MAP[mode.id] ?? { role: "execution", contribution: mode.purpose.toLowerCase() };
 }
 
-const ROLE_ORDER: CognitiveRole[] = ["perspective", "execution", "risk"];
-
 const ROLE_LABEL: Record<CognitiveRole, string> = {
   perspective: "expands perspective",
   execution: "improves execution quality",
   risk: "improves risk detection and consistency",
 };
 
-// ---- Scoring ----------------------------------------------------------------------
+// ---- Situation Type registry ----
+// Each type has signal keywords plus a preferred primary mode id and
+// preferred supporting mode ids (each filling a distinct cognitive role).
+
+interface SituationType {
+  type: string;
+  signals: string[];
+  primary: string;
+  supporting: string[]; // preferred candidates in priority order
+  reason: string; // human-readable reason this type maps to these modes
+}
+
+const SITUATION_TYPES: SituationType[] = [
+  {
+    type: "Learning",
+    signals: ["learn", "understand", "teach me", "how do i", "from scratch", "beginner", "new to", "tutorial", "study"],
+    primary: "snail",
+    supporting: ["clear", "owl"],
+    reason: "The user is absorbing unfamiliar material and needs paced, plain-language guidance over analysis or decisiveness.",
+  },
+  {
+    type: "Teaching",
+    signals: ["teach", "explain to", "lesson", "curriculum", "onboard", "walk them through", "train my", "audience"],
+    primary: "clear",
+    supporting: ["snail", "architect"],
+    reason: "The user is conveying knowledge to others and needs plain language, structured pacing, and a coherent shape.",
+  },
+  {
+    type: "Business Launch",
+    signals: ["launch", "start a business", "startup", "mvp", "go to market", "go-to-market", "founding", "ship the product", "first version"],
+    primary: "captain",
+    supporting: ["architect", "apex"],
+    reason: "The user is committing to a direction and shipping something new — decisive command beats more analysis.",
+  },
+  {
+    type: "Client Acquisition",
+    signals: ["client", "clients", "customer", "customers", "lead generation", "acquire", "land a", "win a", "paying", "first ten", "outreach"],
+    primary: "captain",
+    supporting: ["diplomat", "alien"],
+    reason: "The user is seeking paying customers, trust-building, and business growth rather than analysis.",
+  },
+  {
+    type: "Marketing",
+    signals: ["marketing", "campaign", "brand", "positioning", "messaging", "copy", "ad", "ads", "landing page", "content"],
+    primary: "alien",
+    supporting: ["apex", "clear"],
+    reason: "Marketing rewards fresh angles and polished, plainly written messaging more than internal system analysis.",
+  },
+  {
+    type: "Sales",
+    signals: ["sell", "selling", "sales", "pitch", "close the deal", "objection", "discovery call", "demo", "follow up"],
+    primary: "captain",
+    supporting: ["diplomat", "hawk"],
+    reason: "Sales requires commitment, respectful tone with the buyer, and precise next-action focus.",
+  },
+  {
+    type: "Operations",
+    signals: ["operations", "process", "workflow", "sop", "playbook", "logistics", "scale up", "automate", "throughput"],
+    primary: "architect",
+    supporting: ["hawk", "shadow"],
+    reason: "Operations is about durable structure, precise execution at the bottleneck, and watching for silent failure.",
+  },
+  {
+    type: "Leadership",
+    signals: ["team", "leadership", "lead my", "manager", "direct report", "1:1", "company culture", "vision", "rally"],
+    primary: "captain",
+    supporting: ["architect", "raven"],
+    reason: "Leadership demands a clear call, a coherent structure to lead toward, and an honest critic to pressure-test it.",
+  },
+  {
+    type: "Negotiation",
+    signals: ["negotiate", "negotiation", "counter offer", "counteroffer", "terms", "leverage", "bargain", "deal"],
+    primary: "diplomat",
+    supporting: ["glove", "captain"],
+    reason: "Negotiation rewards measured tone, firm position-holding, and decisive commitment when the moment arrives.",
+  },
+  {
+    type: "Conflict Resolution",
+    signals: ["conflict", "dispute", "disagreement", "argument", "complaint about", "tension", "resolve", "de-escalate", "mediator"],
+    primary: "diplomat",
+    supporting: ["glove", "owl"],
+    reason: "De-escalation needs respectful tone, firm but non-conceding boundaries, and a wide view of what's actually happening.",
+  },
+  {
+    type: "Engineering",
+    signals: ["build", "code", "implement", "refactor", "library", "framework", "api", "database", "deploy", "engineer"],
+    primary: "architect",
+    supporting: ["hawk", "raven"],
+    reason: "Engineering needs structural design, precise execution on the bug or feature, and a stress-tester for weak points.",
+  },
+  {
+    type: "Product Design",
+    signals: ["product design", "ux", "user experience", "user flow", "wireframe", "prototype", "interface", "design the"],
+    primary: "architect",
+    supporting: ["alien", "apex"],
+    reason: "Product design wants coherent structure, an outsider's reframe of defaults, and a no-compromise quality bar.",
+  },
+  {
+    type: "Creative Writing",
+    signals: ["write a story", "novel", "fiction", "screenplay", "poem", "lyrics", "character", "scene", "dialogue"],
+    primary: "alien",
+    supporting: ["apex", "raven"],
+    reason: "Creative writing rewards non-obvious angles, a hard quality bar, and a sharp critic on weak lines.",
+  },
+  {
+    type: "Worldbuilding",
+    signals: ["worldbuilding", "world building", "lore", "setting", "magic system", "factions", "fictional world", "universe"],
+    primary: "architect",
+    supporting: ["alien", "owl"],
+    reason: "Worldbuilding is system design with creative outsider angles and patient, panoramic consistency checks.",
+  },
+  {
+    type: "Research",
+    signals: ["research", "literature", "compare", "trade-off", "tradeoff", "survey of", "evaluate options", "background on"],
+    primary: "owl",
+    supporting: ["shadow", "architect"],
+    reason: "Research needs patient analysis, quiet pattern collection, and structural framing of findings.",
+  },
+  {
+    type: "Legal Analysis",
+    signals: ["legal", "lawsuit", "court", "magistrate", "judge", "statute", "case law", "motion", "filing", "attorney"],
+    primary: "glove",
+    supporting: ["owl", "architect"],
+    reason: "Legal work demands firm position-holding without admissions, deep analysis, and structural argument.",
+  },
+  {
+    type: "Investigation",
+    signals: ["investigate", "investigation", "what really happened", "look into", "dig into", "uncover", "fraud", "leak"],
+    primary: "shadow",
+    supporting: ["owl", "raven"],
+    reason: "The user's primary goal is uncovering hidden facts, supported by panoramic analysis and a sharp critic.",
+  },
+  {
+    type: "Compliance",
+    signals: ["compliance", "regulation", "regulatory", "policy", "audit", "controls", "gdpr", "hipaa", "soc 2", "sox"],
+    primary: "shadow",
+    supporting: ["architect", "glove"],
+    reason: "Compliance work is risk surveillance, structural mapping, and firm procedural posture.",
+  },
+  {
+    type: "Planning",
+    signals: ["plan", "planning", "roadmap", "timeline", "milestones", "schedule", "quarter", "long term", "long-term"],
+    primary: "architect",
+    supporting: ["captain", "owl"],
+    reason: "Planning needs structure, a decisive call on direction, and patient analysis of trade-offs.",
+  },
+  {
+    type: "Troubleshooting",
+    signals: ["bug", "broken", "not working", "error", "crash", "debug", "fails", "regression", "stack trace", "fix the"],
+    primary: "hawk",
+    supporting: ["owl", "raven"],
+    reason: "Troubleshooting wants single-target precision, panoramic context, and a contrarian eye on what's still suspicious.",
+  },
+];
+
+// ---- Recommendation frequency tracking ----
+// Penalize modes that have been recommended often this session to avoid
+// over-recommending the same modes across unrelated situation types.
+
+const recCounts: Record<string, number> = {};
+function bumpCounts(ids: string[]) {
+  for (const id of ids) recCounts[id] = (recCounts[id] ?? 0) + 1;
+}
+function freqPenalty(id: string): number {
+  const n = recCounts[id] ?? 0;
+  return Math.min(n, 5); // soft cap
+}
+
+// ---- Trigger scoring (supporting evidence only) ----
 
 interface Scored {
   mode: Mode;
@@ -78,70 +250,79 @@ function scoreMode(mode: Mode, text: string): Scored {
   return { mode, score, hits };
 }
 
-// ---- Boundary detection -----------------------------------------------------------
+// ---- Situation Type detection ----
 
-const BOUNDARY_SIGNALS = [
-  "boundary", "boundaries", "firm", "stand firm", "not budge", "don't budge",
-  "hold the line", "not admit", "without admitting", "no admission",
-  "preserve rights", "preserve my position", "without conceding", "without waiving",
-  "procedural", "procedure", "formal complaint", "escalate", "escalation",
-  "supervisor", "supervisory", "magistrate", "judge", "court", "lawsuit", "sue",
-  "federal", "agency", "government", "official", "compliance", "ombudsman",
-  "inspector general", "ada complaint", "title vi", "respectful but firm",
-  "professional response", "file a complaint", "civil rights",
-];
-
-const COMEDY_OPT_IN = ["satire", "comedy", "comedic", "roast", "lyrics", "song", "parody", "fiction", "joke"];
-const AGGRESSION_OPT_IN = ["aggressive", "attack", "go hard", "pressure", "seize", "dominate"];
-const RESET_OPT_IN = ["reset", "plain language", "simplify", "tldr", "summarize"];
-
-function detectBoundary(text: string): boolean {
-  for (const s of BOUNDARY_SIGNALS) if (text.includes(s)) return true;
-  return false;
+function detectSituationTypes(text: string): SituationTypeMatch[] {
+  const results: SituationTypeMatch[] = [];
+  for (const st of SITUATION_TYPES) {
+    const hits: string[] = [];
+    for (const s of st.signals) if (text.includes(s)) hits.push(s);
+    if (hits.length) {
+      // weight by signal length (longer = more specific)
+      const score = hits.reduce((acc, h) => acc + (h.length > 8 ? 3 : 2), 0);
+      results.push({ type: st.type, score, hits });
+    }
+  }
+  results.sort((a, b) => b.score - a.score);
+  return results;
 }
 
-// ---- Team assembly ----------------------------------------------------------------
+// ---- Team assembly ----
 
-/**
- * Build a complementary team: one supporting mode per cognitive role that the
- * primary does not already cover. Never picks the primary as a supporter, and
- * never picks two supporters with the same role.
- */
-function buildTeam(
+function buildTeamFromPreferred(
   primary: Mode,
-  scored: Scored[],
   modes: Mode[],
-  preferredIds: string[] = [],
+  preferredIds: string[],
+  scored: Scored[],
 ): { supporting: Mode[]; team: TeamMember[] } {
   const primaryRole = roleOf(primary).role;
-  const usedIds = new Set<string>([primary.id]);
+  const used = new Set<string>([primary.id]);
   const supporting: Mode[] = [];
+  const usedRoles = new Set<CognitiveRole>([primaryRole]);
 
-  // Roles we want to fill, in priority order, excluding the primary's role.
-  const rolesNeeded = ROLE_ORDER.filter((r) => r !== primaryRole);
-
-  const scoredById = new Map(scored.map((s) => [s.mode.id, s]));
-
-  const pickForRole = (role: CognitiveRole): Mode | null => {
-    // 1. Preferred (curated) candidates first.
-    for (const id of preferredIds) {
-      if (usedIds.has(id)) continue;
-      const m = modes.find((mm) => mm.id === id);
-      if (m && roleOf(m).role === role) return m;
+  // 1. Preferred candidates that bring a distinct role.
+  for (const id of preferredIds) {
+    if (supporting.length >= 2) break;
+    if (used.has(id)) continue;
+    const m = modes.find((mm) => mm.id === id);
+    if (!m) continue;
+    const r = roleOf(m).role;
+    if (usedRoles.has(r)) continue;
+    // soft frequency penalty: skip preferred if it's been used heavily and a fresher option exists
+    if (freqPenalty(id) >= 3) {
+      const fresh = modes.find(
+        (mm) => !used.has(mm.id) && roleOf(mm).role === r && freqPenalty(mm.id) < 2,
+      );
+      if (fresh) {
+        supporting.push(fresh);
+        used.add(fresh.id);
+        usedRoles.add(r);
+        continue;
+      }
     }
-    // 2. Highest-scoring mode with this role.
-    const candidates = modes
-      .filter((m) => !usedIds.has(m.id) && roleOf(m).role === role)
-      .map((m) => scoredById.get(m.id) ?? { mode: m, score: 0, hits: [] })
-      .sort((a, b) => b.score - a.score);
-    return candidates[0]?.mode ?? null;
-  };
+    supporting.push(m);
+    used.add(id);
+    usedRoles.add(r);
+  }
 
-  for (const role of rolesNeeded) {
-    const pick = pickForRole(role);
-    if (pick) {
-      supporting.push(pick);
-      usedIds.add(pick.id);
+  // 2. Fill remaining roles from highest-scoring matches.
+  const scoredById = new Map(scored.map((s) => [s.mode.id, s]));
+  const needRoles: CognitiveRole[] = (["perspective", "execution", "risk"] as CognitiveRole[]).filter(
+    (r) => !usedRoles.has(r),
+  );
+  for (const role of needRoles) {
+    if (supporting.length >= 2) break;
+    const cand = modes
+      .filter((m) => !used.has(m.id) && roleOf(m).role === role)
+      .map((m) => ({
+        mode: m,
+        s: (scoredById.get(m.id)?.score ?? 0) - freqPenalty(m.id),
+      }))
+      .sort((a, b) => b.s - a.s)[0];
+    if (cand) {
+      supporting.push(cand.mode);
+      used.add(cand.mode.id);
+      usedRoles.add(role);
     }
   }
 
@@ -153,174 +334,141 @@ function buildTeam(
       contribution: roleOf(m).contribution,
     })),
   ];
-
   return { supporting, team };
 }
 
-function computeConfidence(top: Scored, supporting: Mode[], rolesCovered: number): number {
-  let c = 40;
-  c += Math.min(top.score * 4, 35); // up to +35 from trigger strength
-  c += Math.min(rolesCovered, 2) * 10; // +10 per additional role covered (max 20)
-  if (supporting.length === 0) c -= 10;
-  if (top.score === 0) c -= 15;
+function computeConfidence(
+  typeHits: number,
+  triggerScore: number,
+  rolesCovered: number,
+  hasSupport: boolean,
+): number {
+  let c = 35;
+  c += Math.min(typeHits * 12, 35); // type signals dominate
+  c += Math.min(triggerScore * 2, 20); // triggers as supporting evidence
+  c += Math.min(rolesCovered, 2) * 5;
+  if (!hasSupport) c -= 10;
   return Math.max(0, Math.min(100, Math.round(c)));
 }
 
-// ---- Main -------------------------------------------------------------------------
+// ---- Main ----
 
 export function recommend(situation: string, modes: Mode[]): Recommendation | null {
   if (!modes.length) return null;
   const text = ` ${situation.toLowerCase()} `;
-
-  if (detectBoundary(text)) {
-    const boundary = buildBoundaryRec(situation, text, modes);
-    if (boundary) return boundary;
-  }
-
-  const scored = modes.map((m) => scoreMode(m, text));
-  scored.sort((a, b) => b.score - a.score);
-
-  const top =
-    scored[0].score > 0
-      ? scored[0]
-      : { mode: modes.find((m) => m.id === "owl") ?? modes[0], score: 0, hits: [] };
-
-  const { supporting, team } = buildTeam(top.mode, scored, modes);
-  const avoid = pickAvoid(top.mode, modes, supporting);
-
-  const primarySpec = roleOf(top.mode);
-  const rolesCovered = new Set(team.map((t) => t.role)).size - 1;
-  const confidence = computeConfidence(top, supporting, rolesCovered);
-
-  const matched = top.hits.length
-    ? `matched signals: ${top.hits.slice(0, 4).join(", ")}`
-    : "no strong keyword signals — defaulted to a wide-angle analytical mode";
-
-  const explanation =
-    `${top.mode.mode} is primary because ${matched}. ` +
-    `It is best for ${top.mode.bestFor.toLowerCase()} ` +
-    (supporting.length
-      ? `Stack with ${supporting.map((s) => s.mode).join(" and ")} so the team covers ` +
-        `${[primarySpec.role, ...supporting.map((s) => roleOf(s).role)].join(", ")}.`
-      : `Run it solo for a focused pass.`) +
-    (avoid ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
-
-  const combinedPrompt = buildCombinedPrompt(situation, top.mode, supporting);
-
-  return {
-    primary: top.mode,
-    primaryRole: primarySpec.role,
-    primaryContribution: primarySpec.contribution,
-    supporting,
-    team,
-    avoid,
-    explanation,
-    combinedPrompt,
-    confidence,
-  };
-}
-
-// ---- Boundary recommendation ------------------------------------------------------
-
-function buildBoundaryRec(situation: string, text: string, modes: Mode[]): Recommendation | null {
   const byId = (id: string) => modes.find((m) => m.id === id);
-  const glove = byId("glove");
-  if (!glove) return null;
 
-  const wantsComedy = COMEDY_OPT_IN.some((k) => text.includes(k));
-  const wantsAggression = AGGRESSION_OPT_IN.some((k) => text.includes(k));
-  const wantsReset = RESET_OPT_IN.some((k) => text.includes(k));
+  const types = detectSituationTypes(text);
+  const scored = modes.map((m) => scoreMode(m, text)).sort((a, b) => b.score - a.score);
 
-  const scored = modes.map((m) => scoreMode(m, text));
+  // Step 1+2: determine primary Situation Type(s).
+  const primaryType = types[0];
 
-  const preferred = ["owl", "architect", "shadow", "raven"];
-  const { supporting, team } = buildTeam(glove, scored, modes, preferred);
+  // Step 3: select modes primarily by Situation Type.
+  let primaryMode: Mode | null = null;
+  let preferredSupport: string[] = [];
+  let typeReason = "";
+  const detectedTypeNames: string[] = [];
 
-  let avoid: Mode | null = null;
-  if (!wantsComedy) avoid = byId("gomer-pyle") ?? null;
-  if (!avoid && !wantsAggression) avoid = byId("hawk") ?? null;
-  if (!avoid && !wantsReset) avoid = byId("clear") ?? null;
-
-  const primarySpec = roleOf(glove);
-  const rolesCovered = new Set(team.map((t) => t.role)).size - 1;
-  const baseScored: Scored = { mode: glove, score: 8, hits: ["boundary signal"] };
-  const confidence = Math.min(100, computeConfidence(baseScored, supporting, rolesCovered) + 10);
-
-  const explanation =
-    `${glove.mode} is primary because this is a firm professional boundary situation — ` +
-    `you need to hold your position, avoid admissions, and stay procedurally correct without ` +
-    `feeding conflict. ` +
-    (supporting.length
-      ? `Stack with ${supporting.map((s) => s.mode).join(" and ")} so the team covers ` +
-        `${[primarySpec.role, ...supporting.map((s) => roleOf(s).role)].join(", ")}. `
-      : ``) +
-    (avoid
-      ? `Avoid ${avoid.mode} here unless you specifically want ` +
-        (avoid.id === "gomer-pyle"
-          ? "satire, comedy, fiction, lyrics, or roast writing"
-          : avoid.id === "hawk"
-            ? "aggressive opportunity seizure"
-            : avoid.id === "clear"
-              ? "a plain-language reset"
-              : avoid.avoidWhen.toLowerCase()) +
-        "."
-      : "");
-
-  const combinedPrompt = buildBoundaryPrompt(situation, glove, supporting);
-
-  return {
-    primary: glove,
-    primaryRole: primarySpec.role,
-    primaryContribution: primarySpec.contribution,
-    supporting,
-    team,
-    avoid,
-    explanation,
-    combinedPrompt,
-    confidence,
-  };
-}
-
-function buildBoundaryPrompt(situation: string, primary: Mode, supporting: Mode[]): string {
-  const lines: string[] = [];
-  lines.push(`# User Instructions`);
-  lines.push(
-    `Paste the combined prompt into your AI tool before asking it to draft the message. ` +
-      `Do not use comedy, insults, threats, or emotional language unless intentionally ` +
-      `writing fiction or satire.`,
-  );
-  lines.push("");
-  lines.push(`# Task Instructions`);
-  lines.push(`Create a message that:`);
-  lines.push(`- stays calm and professional`);
-  lines.push(`- preserves the user's position`);
-  lines.push(`- avoids unnecessary admissions`);
-  lines.push(`- uses procedural language`);
-  lines.push(`- makes a specific request`);
-  lines.push(`- escalates respectfully only if needed`);
-  lines.push(`- avoids feeding conflict`);
-  lines.push("");
-  lines.push(`# Situation`);
-  lines.push(situation.trim() || "(describe the situation here)");
-  lines.push("");
-  lines.push(`# Primary: ${primary.mode}`);
-  lines.push(primary.fullPrompt);
-  if (supporting.length) {
-    lines.push("");
-    lines.push(`# Stack`);
-    for (const s of supporting) {
-      lines.push(`- ${s.mode}: ${s.fullPrompt}`);
+  if (primaryType) {
+    const st = SITUATION_TYPES.find((s) => s.type === primaryType.type)!;
+    primaryMode = byId(st.primary) ?? null;
+    preferredSupport = st.supporting;
+    typeReason = st.reason;
+    detectedTypeNames.push(primaryType.type);
+    // include any close second type
+    if (types[1] && types[1].score >= primaryType.score * 0.75) {
+      detectedTypeNames.push(types[1].type);
     }
   }
-  lines.push("");
-  lines.push(`# Exit`);
-  lines.push([primary, ...supporting].map((m) => m.exitPhrase).join(" "));
-  return lines.join("\n");
+
+  // Step 4: keywords as supporting evidence only — fall back to top-scoring
+  // mode if no situation type matched at all.
+  if (!primaryMode) {
+    primaryMode =
+      scored[0].score > 0
+        ? scored[0].mode
+        : byId("owl") ?? modes[0];
+    typeReason =
+      "No specific situation type signals detected. Falling back to the strongest keyword match as a wide-angle starting point.";
+  }
+
+  const { supporting, team } = buildTeamFromPreferred(
+    primaryMode,
+    modes,
+    preferredSupport,
+    scored,
+  );
+
+  const avoid = pickAvoid(primaryMode, modes, supporting, text);
+
+  const triggerScore = scored.find((s) => s.mode.id === primaryMode.id)?.score ?? 0;
+  const rolesCovered = new Set(team.map((t) => t.role)).size - 1;
+  const confidence = computeConfidence(
+    primaryType?.hits.length ?? 0,
+    triggerScore,
+    rolesCovered,
+    supporting.length > 0,
+  );
+
+  const supportEvidence =
+    triggerScore > 0
+      ? `Keyword evidence (${scored.find((s) => s.mode.id === primaryMode!.id)?.hits.slice(0, 3).join(", ")}) supports this pick.`
+      : `No strong keyword signals for the primary mode — selection is driven by Situation Type.`;
+
+  const explanation =
+    (primaryType
+      ? `Detected Situation Type: ${detectedTypeNames.join(" + ")}. `
+      : `No clear Situation Type signals. `) +
+    `${primaryMode.mode} is primary because ${typeReason} ` +
+    supportEvidence +
+    (supporting.length
+      ? ` Supporting with ${supporting.map((s) => s.mode).join(" and ")} so the team covers distinct cognitive roles.`
+      : ``) +
+    (avoid ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
+
+  const combinedPrompt = buildCombinedPrompt(
+    situation,
+    primaryMode,
+    supporting,
+    detectedTypeNames,
+  );
+
+  bumpCounts([primaryMode.id, ...supporting.map((s) => s.id)]);
+
+  return {
+    primary: primaryMode,
+    primaryRole: roleOf(primaryMode).role,
+    primaryContribution: roleOf(primaryMode).contribution,
+    supporting,
+    team,
+    avoid,
+    explanation,
+    combinedPrompt,
+    confidence,
+    situationTypes: types.slice(0, 3),
+    situationReason: typeReason,
+  };
 }
 
-// ---- Generic helpers --------------------------------------------------------------
+// ---- Avoid selection ----
 
-function pickAvoid(primary: Mode, modes: Mode[], supporting: Mode[]): Mode | null {
+const COMEDY_OPT_IN = ["satire", "comedy", "comedic", "roast", "lyrics", "song", "parody", "fiction", "joke"];
+
+function pickAvoid(
+  primary: Mode,
+  modes: Mode[],
+  supporting: Mode[],
+  text: string,
+): Mode | null {
+  const usedIds = new Set([primary.id, ...supporting.map((s) => s.id)]);
+  const wantsComedy = COMEDY_OPT_IN.some((k) => text.includes(k));
+  // Gomer Pyle is almost never appropriate unless comedy was requested.
+  if (!wantsComedy) {
+    const gp = modes.find((m) => m.id === "gomer-pyle" && !usedIds.has(m.id));
+    if (gp) return gp;
+  }
+  // Fall back to an opposite-intensity mode for contrast.
   const opposites: Record<string, string> = {
     Extreme: "Low",
     High: "Low",
@@ -328,15 +476,23 @@ function pickAvoid(primary: Mode, modes: Mode[], supporting: Mode[]): Mode | nul
     Medium: "Extreme",
   };
   const target = opposites[primary.intensity];
-  const usedIds = new Set([primary.id, ...supporting.map((s) => s.id)]);
-  const candidate = modes.find(
-    (m) => !usedIds.has(m.id) && m.intensity === target,
-  );
-  return candidate ?? null;
+  return modes.find((m) => !usedIds.has(m.id) && m.intensity === target) ?? null;
 }
 
-function buildCombinedPrompt(situation: string, primary: Mode, supporting: Mode[]): string {
+// ---- Prompt assembly ----
+
+function buildCombinedPrompt(
+  situation: string,
+  primary: Mode,
+  supporting: Mode[],
+  detectedTypes: string[],
+): string {
   const lines: string[] = [];
+  if (detectedTypes.length) {
+    lines.push(`# Situation Type`);
+    lines.push(detectedTypes.join(", "));
+    lines.push("");
+  }
   lines.push(`# Situation`);
   lines.push(situation.trim() || "(describe the situation here)");
   lines.push("");

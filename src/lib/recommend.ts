@@ -99,8 +99,8 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Learning",
     signals: ["learn", "understand", "teach me", "how do i", "from scratch", "beginner", "new to", "tutorial", "study"],
     primary: "snail",
-    supporting: ["clear", "owl"],
-    reason: "The user is absorbing unfamiliar material and needs paced, plain-language guidance over analysis or decisiveness.",
+    supporting: ["owl"],
+    reason: "The user is absorbing unfamiliar material and needs paced guidance with wide-angle context. Shadow is avoided here unless explicit critique is requested.",
   },
   {
     type: "Teaching",
@@ -114,15 +114,16 @@ const SITUATION_TYPES: SituationType[] = [
     signals: ["launch", "start a business", "startup", "mvp", "go to market", "go-to-market", "founding", "ship the product", "first version"],
     primary: "captain",
     supporting: ["architect", "apex"],
-    reason: "The user is committing to a direction and shipping something new — decisive command beats more analysis.",
+    reason: "The user is committing to a direction and shipping something new — decisive command beats more analysis, structure keeps it durable, and a hard quality bar protects the launch.",
   },
   {
     type: "Client Acquisition",
     signals: ["client", "clients", "customer", "customers", "lead generation", "acquire", "land a", "win a", "paying", "first ten", "outreach"],
     primary: "captain",
-    supporting: ["diplomat", "alien"],
-    reason: "The user is seeking paying customers, trust-building, and business growth rather than analysis.",
+    supporting: ["diplomat", "wild-bird-seed", "architect"],
+    reason: "The user is seeking paying customers, trust-building, and business growth rather than analysis. Shadow only as a risk check, Alien only for unconventional approaches.",
   },
+
   {
     type: "Marketing",
     signals: ["marketing", "campaign", "brand", "positioning", "messaging", "copy", "ad", "ads", "landing page", "content"],

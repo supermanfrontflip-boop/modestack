@@ -625,6 +625,8 @@ function buildCombinedPrompt(
   primary: Mode,
   supporting: Mode[],
   detectedTypes: string[],
+  stage: WorkStage,
+  deliverable: string,
 ): string {
   const lines: string[] = [];
   if (detectedTypes.length) {
@@ -632,6 +634,12 @@ function buildCombinedPrompt(
     lines.push(detectedTypes.join(", "));
     lines.push("");
   }
+  lines.push(`# Current Stage`);
+  lines.push(stage);
+  lines.push("");
+  lines.push(`# Target Deliverable`);
+  lines.push(deliverable);
+  lines.push("");
   lines.push(`# Situation`);
   lines.push(situation.trim() || "(describe the situation here)");
   lines.push("");

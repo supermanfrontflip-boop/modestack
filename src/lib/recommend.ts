@@ -549,13 +549,6 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
       : ``) +
     (avoid ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
 
-  const combinedPrompt = buildCombinedPrompt(
-    situation,
-    primaryMode,
-    supporting,
-    detectedTypeNames,
-  );
-
   const stage = detectStage(text);
   const deliverable = detectDeliverable(text, primaryType?.type ?? null);
   const { fit: aiRecommended, reason: aiReason } = assessAIFit(text, deliverable);
@@ -564,6 +557,15 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     supporting.length,
     stage,
     aiRecommended,
+  );
+
+  const combinedPrompt = buildCombinedPrompt(
+    situation,
+    primaryMode,
+    supporting,
+    detectedTypeNames,
+    stage,
+    deliverable,
   );
 
   bumpCounts([primaryMode.id, ...supporting.map((s) => s.id)]);

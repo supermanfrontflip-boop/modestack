@@ -149,7 +149,7 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Leadership",
     signals: ["team", "leadership", "lead my", "manager", "direct report", "1:1", "company culture", "vision", "rally"],
     primary: "captain",
-    supporting: ["architect", "raven"],
+    supporting: ["architect", "shadow"],
     reason: "Leadership demands a clear call, a coherent structure to lead toward, and an honest critic to pressure-test it.",
   },
   {
@@ -170,7 +170,7 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Engineering",
     signals: ["build", "code", "implement", "refactor", "library", "framework", "api", "database", "deploy", "engineer"],
     primary: "architect",
-    supporting: ["hawk", "raven"],
+    supporting: ["hawk", "shadow"],
     reason: "Engineering needs structural design, precise execution on the bug or feature, and a stress-tester for weak points.",
   },
   {
@@ -212,7 +212,7 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Investigation",
     signals: ["investigate", "investigation", "what really happened", "look into", "dig into", "uncover", "fraud", "leak"],
     primary: "shadow",
-    supporting: ["owl", "raven"],
+    supporting: ["owl", "architect"],
     reason: "The user's primary goal is uncovering hidden facts, supported by panoramic analysis and a sharp critic.",
   },
   {
@@ -233,7 +233,7 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Troubleshooting",
     signals: ["bug", "broken", "not working", "error", "crash", "debug", "fails", "regression", "stack trace", "fix the"],
     primary: "hawk",
-    supporting: ["owl", "raven"],
+    supporting: ["owl", "shadow"],
     reason: "Troubleshooting wants single-target precision, panoramic context, and a contrarian eye on what's still suspicious.",
   },
 ];

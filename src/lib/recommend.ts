@@ -184,8 +184,8 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Creative Writing",
     signals: ["write a story", "novel", "fiction", "screenplay", "poem", "lyrics", "character", "scene", "dialogue"],
     primary: "alien",
-    supporting: ["apex", "raven"],
-    reason: "Creative writing rewards non-obvious angles, a hard quality bar, and a sharp critic on weak lines.",
+    supporting: ["raven", "architect"],
+    reason: "Creative writing rewards non-obvious angles, associative symbolic depth, and a coherent structural spine. Shadow is avoided unless critique is requested.",
   },
   {
     type: "Worldbuilding",

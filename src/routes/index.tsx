@@ -172,7 +172,22 @@ function HomePage() {
             </div>
           )}
 
+          <div className="hud-panel hud-corner p-4 grid grid-cols-2 gap-3 border-primary/30">
+            <Stat label="CURRENT STAGE" value={rec.stage} />
+            <Stat label="COMPLEXITY" value={rec.complexity} />
+            <Stat
+              label="AI RECOMMENDED?"
+              value={rec.aiRecommended}
+              tone={rec.aiRecommended === "Yes" ? "good" : rec.aiRecommended === "Limited" ? "warn" : "bad"}
+            />
+            <Stat label="DELIVERABLE" value={rec.deliverable} wide />
+            <div className="col-span-2 text-[11px] text-muted-foreground leading-relaxed">
+              {rec.aiReason}
+            </div>
+          </div>
+
           <ConfidenceMeter value={rec.confidence} />
+
 
           <ModeCard label="PRIMARY MODE" mode={rec.primary} accent="primary" />
 
@@ -270,6 +285,33 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="text-[10px] mono tracking-[0.25em] text-muted-foreground">
       // {children}
+    </div>
+  );
+}
+
+function Stat({
+  label,
+  value,
+  tone,
+  wide,
+}: {
+  label: string;
+  value: string;
+  tone?: "good" | "warn" | "bad";
+  wide?: boolean;
+}) {
+  const color =
+    tone === "good"
+      ? "text-primary"
+      : tone === "warn"
+      ? "text-yellow-400"
+      : tone === "bad"
+      ? "text-destructive"
+      : "text-foreground";
+  return (
+    <div className={wide ? "col-span-2" : ""}>
+      <div className="text-[9px] mono tracking-[0.25em] text-muted-foreground">{label}</div>
+      <div className={`mono text-sm mt-0.5 ${color}`}>{value}</div>
     </div>
   );
 }

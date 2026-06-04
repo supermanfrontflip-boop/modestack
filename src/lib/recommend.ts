@@ -14,6 +14,19 @@ export interface SituationTypeMatch {
   hits: string[];
 }
 
+export type WorkStage =
+  | "Idea"
+  | "Planning"
+  | "Drafting"
+  | "Building"
+  | "Refining"
+  | "Reviewing"
+  | "Shipping"
+  | "Post-Launch";
+
+export type AIFit = "Yes" | "Limited" | "No";
+export type Complexity = "Minimal" | "Light" | "Standard" | "Heavy";
+
 export interface Recommendation {
   primary: Mode;
   primaryRole: CognitiveRole;
@@ -24,8 +37,13 @@ export interface Recommendation {
   explanation: string;
   combinedPrompt: string;
   confidence: number;
-  situationTypes: SituationTypeMatch[]; // detected types, ranked
-  situationReason: string; // why these modes for this type
+  situationTypes: SituationTypeMatch[];
+  situationReason: string;
+  stage: WorkStage;
+  deliverable: string;
+  aiRecommended: AIFit;
+  aiReason: string;
+  complexity: Complexity;
 }
 
 // ---- Cognitive role registry ----
@@ -39,8 +57,8 @@ const ROLE_MAP: Record<string, RoleSpec> = {
   owl:        { role: "perspective", contribution: "wide-angle analysis that surfaces what is being missed" },
   alien:      { role: "perspective", contribution: "outsider reframing that breaks default assumptions" },
   architect:  { role: "perspective", contribution: "structural coherence across the whole system" },
-  shadow:     { role: "risk",        contribution: "quiet pattern collection that surfaces hidden risks" },
-  raven:      { role: "risk",        contribution: "contrarian stress-test that hunts weak points" },
+  raven:      { role: "perspective", contribution: "associative, symbolic, emotionally resonant creative angle" },
+  shadow:     { role: "risk",        contribution: "skeptical adversary stress-testing for weaknesses and exploits" },
   hawk:       { role: "execution",   contribution: "single-target precision for the next concrete action" },
   apex:       { role: "execution",   contribution: "no-compromise quality bar on the final output" },
   captain:    { role: "execution",   contribution: "decisive command voice that commits to a direction" },
@@ -48,6 +66,9 @@ const ROLE_MAP: Record<string, RoleSpec> = {
   clear:      { role: "execution",   contribution: "plain-language clarity for the reader" },
   glove:      { role: "execution",   contribution: "firm boundary-holding without admissions or waivers" },
   diplomat:   { role: "execution",   contribution: "respectful, measured tone that de-escalates" },
+  curator:    { role: "execution",   contribution: "selects strongest options and refines for elegance" },
+  whaler:     { role: "execution",   contribution: "patient pursuit of a single high-value client or deal" },
+  "wild-bird-seed": { role: "execution", contribution: "attraction-based value scattering for inbound leads" },
   "gomer-pyle": { role: "perspective", contribution: "folksy comedic voice for satire and parody" },
 };
 
@@ -78,8 +99,8 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Learning",
     signals: ["learn", "understand", "teach me", "how do i", "from scratch", "beginner", "new to", "tutorial", "study"],
     primary: "snail",
-    supporting: ["clear", "owl"],
-    reason: "The user is absorbing unfamiliar material and needs paced, plain-language guidance over analysis or decisiveness.",
+    supporting: ["owl"],
+    reason: "The user is absorbing unfamiliar material and needs paced guidance with wide-angle context. Shadow is avoided here unless explicit critique is requested.",
   },
   {
     type: "Teaching",
@@ -93,15 +114,16 @@ const SITUATION_TYPES: SituationType[] = [
     signals: ["launch", "start a business", "startup", "mvp", "go to market", "go-to-market", "founding", "ship the product", "first version"],
     primary: "captain",
     supporting: ["architect", "apex"],
-    reason: "The user is committing to a direction and shipping something new — decisive command beats more analysis.",
+    reason: "The user is committing to a direction and shipping something new — decisive command beats more analysis, structure keeps it durable, and a hard quality bar protects the launch.",
   },
   {
     type: "Client Acquisition",
     signals: ["client", "clients", "customer", "customers", "lead generation", "acquire", "land a", "win a", "paying", "first ten", "outreach"],
     primary: "captain",
-    supporting: ["diplomat", "alien"],
-    reason: "The user is seeking paying customers, trust-building, and business growth rather than analysis.",
+    supporting: ["diplomat", "wild-bird-seed", "architect"],
+    reason: "The user is seeking paying customers, trust-building, and business growth rather than analysis. Shadow only as a risk check, Alien only for unconventional approaches.",
   },
+
   {
     type: "Marketing",
     signals: ["marketing", "campaign", "brand", "positioning", "messaging", "copy", "ad", "ads", "landing page", "content"],
@@ -127,7 +149,7 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Leadership",
     signals: ["team", "leadership", "lead my", "manager", "direct report", "1:1", "company culture", "vision", "rally"],
     primary: "captain",
-    supporting: ["architect", "raven"],
+    supporting: ["architect", "shadow"],
     reason: "Leadership demands a clear call, a coherent structure to lead toward, and an honest critic to pressure-test it.",
   },
   {
@@ -148,7 +170,7 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Engineering",
     signals: ["build", "code", "implement", "refactor", "library", "framework", "api", "database", "deploy", "engineer"],
     primary: "architect",
-    supporting: ["hawk", "raven"],
+    supporting: ["hawk", "shadow"],
     reason: "Engineering needs structural design, precise execution on the bug or feature, and a stress-tester for weak points.",
   },
   {
@@ -162,8 +184,8 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Creative Writing",
     signals: ["write a story", "novel", "fiction", "screenplay", "poem", "lyrics", "character", "scene", "dialogue"],
     primary: "alien",
-    supporting: ["apex", "raven"],
-    reason: "Creative writing rewards non-obvious angles, a hard quality bar, and a sharp critic on weak lines.",
+    supporting: ["raven", "architect"],
+    reason: "Creative writing rewards non-obvious angles, associative symbolic depth, and a coherent structural spine. Shadow is avoided unless critique is requested.",
   },
   {
     type: "Worldbuilding",
@@ -190,7 +212,7 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Investigation",
     signals: ["investigate", "investigation", "what really happened", "look into", "dig into", "uncover", "fraud", "leak"],
     primary: "shadow",
-    supporting: ["owl", "raven"],
+    supporting: ["owl", "architect"],
     reason: "The user's primary goal is uncovering hidden facts, supported by panoramic analysis and a sharp critic.",
   },
   {
@@ -211,7 +233,7 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Troubleshooting",
     signals: ["bug", "broken", "not working", "error", "crash", "debug", "fails", "regression", "stack trace", "fix the"],
     primary: "hawk",
-    supporting: ["owl", "raven"],
+    supporting: ["owl", "shadow"],
     reason: "Troubleshooting wants single-target precision, panoramic context, and a contrarian eye on what's still suspicious.",
   },
 ];
@@ -351,6 +373,106 @@ function computeConfidence(
   return Math.max(0, Math.min(100, Math.round(c)));
 }
 
+// ---- Stage / Deliverable / AI-fit detection ----
+
+function detectStage(text: string): WorkStage {
+  if (/\b(post.?launch|after launch|already shipped|in production|retention|churn)\b/.test(text)) return "Post-Launch";
+  if (/\b(ship|launch|publish|go live|deploy|release)\b/.test(text)) return "Shipping";
+  if (/\b(review|audit|red.?team|red team|stress test|critique|feedback on)\b/.test(text)) return "Reviewing";
+  if (/\b(refine|polish|edit|tighten|cleanup|clean up|revise)\b/.test(text)) return "Refining";
+  if (/\b(build|implement|code|develop|construct|wire up)\b/.test(text)) return "Building";
+  if (/\b(draft|write|outline|sketch|first version|first pass)\b/.test(text)) return "Drafting";
+  if (/\b(plan|planning|roadmap|strategy|map out|scope|decide)\b/.test(text)) return "Planning";
+  return "Idea";
+}
+
+const DELIVERABLE_PATTERNS: Array<{ rx: RegExp; label: string }> = [
+  { rx: /service catalog/, label: "Service Catalog" },
+  { rx: /vendor (info|information|sheet)/, label: "Vendor Information Sheet" },
+  { rx: /pricing( sheet| page| table)?/, label: "Pricing Sheet" },
+  { rx: /client acquisition|acquisition plan/, label: "Client Acquisition Plan" },
+  { rx: /website (copy|content|page)/, label: "Website Content" },
+  { rx: /operating procedure|sop|playbook/, label: "Operating Procedure" },
+  { rx: /marketing campaign|ad campaign|campaign brief/, label: "Marketing Campaign Plan" },
+  { rx: /landing page/, label: "Landing Page Copy" },
+  { rx: /pitch deck|investor deck/, label: "Pitch Deck Outline" },
+  { rx: /email (sequence|drip|campaign)/, label: "Email Sequence" },
+  { rx: /contract|agreement|terms of service|tos /, label: "Contract Draft" },
+  { rx: /lead magnet|free (guide|resource|ebook)/, label: "Lead Magnet" },
+  { rx: /lawsuit|complaint|motion|filing|legal response/, label: "Legal Response Draft" },
+  { rx: /bug|crash|error|stack trace|debug/, label: "Root-cause + Fix" },
+  { rx: /lesson|curriculum|tutorial/, label: "Lesson Outline" },
+];
+
+const DEFAULT_DELIVERABLE_BY_TYPE: Record<string, string> = {
+  "Learning": "Concept walkthrough with checkpoints",
+  "Teaching": "Lesson outline",
+  "Business Launch": "Next-step deliverable (e.g. Service Catalog, Pricing Sheet, or Client Acquisition Plan)",
+  "Client Acquisition": "Client Acquisition Plan",
+  "Marketing": "Campaign brief",
+  "Sales": "Outreach sequence",
+  "Operations": "Operating Procedure",
+  "Leadership": "Leadership memo or direction note",
+  "Negotiation": "Counter-proposal draft",
+  "Conflict Resolution": "Measured response draft",
+  "Engineering": "Design doc + first implementation",
+  "Product Design": "Flow + interface spec",
+  "Creative Writing": "Draft scene or hook",
+  "Worldbuilding": "Setting bible entry",
+  "Research": "Findings summary with trade-offs",
+  "Legal Analysis": "Legal response draft",
+  "Investigation": "Findings report",
+  "Compliance": "Control gap report",
+  "Planning": "Roadmap with milestones",
+  "Troubleshooting": "Root-cause + fix",
+};
+
+function detectDeliverable(text: string, situationType: string | null): string {
+  for (const p of DELIVERABLE_PATTERNS) {
+    if (p.rx.test(text)) return p.label;
+  }
+  if (situationType && DEFAULT_DELIVERABLE_BY_TYPE[situationType]) {
+    return DEFAULT_DELIVERABLE_BY_TYPE[situationType];
+  }
+  return "Clarify the next concrete deliverable before generating";
+}
+
+function assessAIFit(text: string, deliverable: string): { fit: AIFit; reason: string } {
+  if (/\b(in person|in-person|sign the|notarize|physically|show up to court|on the phone with|call them and)\b/.test(text)) {
+    return { fit: "No", reason: "This step requires real-world or in-person action that AI cannot perform." };
+  }
+  if (/\b(legal advice|medical advice|diagnose|prescribe|file with the court|represent me)\b/.test(text)) {
+    return {
+      fit: "Limited",
+      reason: "AI can draft and structure, but a licensed professional should review or perform the binding step.",
+    };
+  }
+  if (/\b(decide for me|tell me what to feel|my values|my gut)\b/.test(text)) {
+    return { fit: "Limited", reason: "The core decision is personal — AI should inform, not replace, your judgment." };
+  }
+  if (/draft|write|outline|brainstorm|summarize|plan|explain|design|review|edit|refine|debug|analyze/.test(deliverable.toLowerCase()) ||
+      /draft|write|outline|brainstorm|summarize|plan|explain|design|review|edit|refine|debug|analyze/.test(text)) {
+    return { fit: "Yes", reason: "Drafting, structuring, and refining text artifacts is squarely in AI's strengths." };
+  }
+  return { fit: "Yes", reason: "AI can produce a useful first version that you then review." };
+}
+
+function assessComplexity(
+  primaryRole: CognitiveRole,
+  supportingCount: number,
+  stage: WorkStage,
+  aiFit: AIFit,
+): Complexity {
+  if (aiFit === "No") return "Minimal";
+  if (stage === "Idea" || stage === "Drafting") {
+    return supportingCount <= 1 ? "Light" : "Standard";
+  }
+  if (stage === "Shipping" || stage === "Reviewing") {
+    return supportingCount >= 2 ? "Heavy" : "Standard";
+  }
+  return supportingCount >= 2 ? "Standard" : "Light";
+}
+
 // ---- Main ----
 
 export function recommend(situation: string, modes: Mode[]): Recommendation | null {
@@ -427,11 +549,23 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
       : ``) +
     (avoid ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
 
+  const stage = detectStage(text);
+  const deliverable = detectDeliverable(text, primaryType?.type ?? null);
+  const { fit: aiRecommended, reason: aiReason } = assessAIFit(text, deliverable);
+  const complexity = assessComplexity(
+    roleOf(primaryMode).role,
+    supporting.length,
+    stage,
+    aiRecommended,
+  );
+
   const combinedPrompt = buildCombinedPrompt(
     situation,
     primaryMode,
     supporting,
     detectedTypeNames,
+    stage,
+    deliverable,
   );
 
   bumpCounts([primaryMode.id, ...supporting.map((s) => s.id)]);
@@ -448,6 +582,11 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     confidence,
     situationTypes: types.slice(0, 3),
     situationReason: typeReason,
+    stage,
+    deliverable,
+    aiRecommended,
+    aiReason,
+    complexity,
   };
 }
 
@@ -486,6 +625,8 @@ function buildCombinedPrompt(
   primary: Mode,
   supporting: Mode[],
   detectedTypes: string[],
+  stage: WorkStage,
+  deliverable: string,
 ): string {
   const lines: string[] = [];
   if (detectedTypes.length) {
@@ -493,6 +634,12 @@ function buildCombinedPrompt(
     lines.push(detectedTypes.join(", "));
     lines.push("");
   }
+  lines.push(`# Current Stage`);
+  lines.push(stage);
+  lines.push("");
+  lines.push(`# Target Deliverable`);
+  lines.push(deliverable);
+  lines.push("");
   lines.push(`# Situation`);
   lines.push(situation.trim() || "(describe the situation here)");
   lines.push("");

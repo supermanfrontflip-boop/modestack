@@ -556,6 +556,16 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     detectedTypeNames,
   );
 
+  const stage = detectStage(text);
+  const deliverable = detectDeliverable(text, primaryType?.type ?? null);
+  const { fit: aiRecommended, reason: aiReason } = assessAIFit(text, deliverable);
+  const complexity = assessComplexity(
+    roleOf(primaryMode).role,
+    supporting.length,
+    stage,
+    aiRecommended,
+  );
+
   bumpCounts([primaryMode.id, ...supporting.map((s) => s.id)]);
 
   return {
@@ -570,6 +580,11 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     confidence,
     situationTypes: types.slice(0, 3),
     situationReason: typeReason,
+    stage,
+    deliverable,
+    aiRecommended,
+    aiReason,
+    complexity,
   };
 }
 

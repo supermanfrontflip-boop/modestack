@@ -373,6 +373,106 @@ function computeConfidence(
   return Math.max(0, Math.min(100, Math.round(c)));
 }
 
+// ---- Stage / Deliverable / AI-fit detection ----
+
+function detectStage(text: string): WorkStage {
+  if (/\b(post.?launch|after launch|already shipped|in production|retention|churn)\b/.test(text)) return "Post-Launch";
+  if (/\b(ship|launch|publish|go live|deploy|release)\b/.test(text)) return "Shipping";
+  if (/\b(review|audit|red.?team|red team|stress test|critique|feedback on)\b/.test(text)) return "Reviewing";
+  if (/\b(refine|polish|edit|tighten|cleanup|clean up|revise)\b/.test(text)) return "Refining";
+  if (/\b(build|implement|code|develop|construct|wire up)\b/.test(text)) return "Building";
+  if (/\b(draft|write|outline|sketch|first version|first pass)\b/.test(text)) return "Drafting";
+  if (/\b(plan|planning|roadmap|strategy|map out|scope|decide)\b/.test(text)) return "Planning";
+  return "Idea";
+}
+
+const DELIVERABLE_PATTERNS: Array<{ rx: RegExp; label: string }> = [
+  { rx: /service catalog/, label: "Service Catalog" },
+  { rx: /vendor (info|information|sheet)/, label: "Vendor Information Sheet" },
+  { rx: /pricing( sheet| page| table)?/, label: "Pricing Sheet" },
+  { rx: /client acquisition|acquisition plan/, label: "Client Acquisition Plan" },
+  { rx: /website (copy|content|page)/, label: "Website Content" },
+  { rx: /operating procedure|sop|playbook/, label: "Operating Procedure" },
+  { rx: /marketing campaign|ad campaign|campaign brief/, label: "Marketing Campaign Plan" },
+  { rx: /landing page/, label: "Landing Page Copy" },
+  { rx: /pitch deck|investor deck/, label: "Pitch Deck Outline" },
+  { rx: /email (sequence|drip|campaign)/, label: "Email Sequence" },
+  { rx: /contract|agreement|terms of service|tos /, label: "Contract Draft" },
+  { rx: /lead magnet|free (guide|resource|ebook)/, label: "Lead Magnet" },
+  { rx: /lawsuit|complaint|motion|filing|legal response/, label: "Legal Response Draft" },
+  { rx: /bug|crash|error|stack trace|debug/, label: "Root-cause + Fix" },
+  { rx: /lesson|curriculum|tutorial/, label: "Lesson Outline" },
+];
+
+const DEFAULT_DELIVERABLE_BY_TYPE: Record<string, string> = {
+  "Learning": "Concept walkthrough with checkpoints",
+  "Teaching": "Lesson outline",
+  "Business Launch": "Next-step deliverable (e.g. Service Catalog, Pricing Sheet, or Client Acquisition Plan)",
+  "Client Acquisition": "Client Acquisition Plan",
+  "Marketing": "Campaign brief",
+  "Sales": "Outreach sequence",
+  "Operations": "Operating Procedure",
+  "Leadership": "Leadership memo or direction note",
+  "Negotiation": "Counter-proposal draft",
+  "Conflict Resolution": "Measured response draft",
+  "Engineering": "Design doc + first implementation",
+  "Product Design": "Flow + interface spec",
+  "Creative Writing": "Draft scene or hook",
+  "Worldbuilding": "Setting bible entry",
+  "Research": "Findings summary with trade-offs",
+  "Legal Analysis": "Legal response draft",
+  "Investigation": "Findings report",
+  "Compliance": "Control gap report",
+  "Planning": "Roadmap with milestones",
+  "Troubleshooting": "Root-cause + fix",
+};
+
+function detectDeliverable(text: string, situationType: string | null): string {
+  for (const p of DELIVERABLE_PATTERNS) {
+    if (p.rx.test(text)) return p.label;
+  }
+  if (situationType && DEFAULT_DELIVERABLE_BY_TYPE[situationType]) {
+    return DEFAULT_DELIVERABLE_BY_TYPE[situationType];
+  }
+  return "Clarify the next concrete deliverable before generating";
+}
+
+function assessAIFit(text: string, deliverable: string): { fit: AIFit; reason: string } {
+  if (/\b(in person|in-person|sign the|notarize|physically|show up to court|on the phone with|call them and)\b/.test(text)) {
+    return { fit: "No", reason: "This step requires real-world or in-person action that AI cannot perform." };
+  }
+  if (/\b(legal advice|medical advice|diagnose|prescribe|file with the court|represent me)\b/.test(text)) {
+    return {
+      fit: "Limited",
+      reason: "AI can draft and structure, but a licensed professional should review or perform the binding step.",
+    };
+  }
+  if (/\b(decide for me|tell me what to feel|my values|my gut)\b/.test(text)) {
+    return { fit: "Limited", reason: "The core decision is personal — AI should inform, not replace, your judgment." };
+  }
+  if (/draft|write|outline|brainstorm|summarize|plan|explain|design|review|edit|refine|debug|analyze/.test(deliverable.toLowerCase()) ||
+      /draft|write|outline|brainstorm|summarize|plan|explain|design|review|edit|refine|debug|analyze/.test(text)) {
+    return { fit: "Yes", reason: "Drafting, structuring, and refining text artifacts is squarely in AI's strengths." };
+  }
+  return { fit: "Yes", reason: "AI can produce a useful first version that you then review." };
+}
+
+function assessComplexity(
+  primaryRole: CognitiveRole,
+  supportingCount: number,
+  stage: WorkStage,
+  aiFit: AIFit,
+): Complexity {
+  if (aiFit === "No") return "Minimal";
+  if (stage === "Idea" || stage === "Drafting") {
+    return supportingCount <= 1 ? "Light" : "Standard";
+  }
+  if (stage === "Shipping" || stage === "Reviewing") {
+    return supportingCount >= 2 ? "Heavy" : "Standard";
+  }
+  return supportingCount >= 2 ? "Standard" : "Light";
+}
+
 // ---- Main ----
 
 export function recommend(situation: string, modes: Mode[]): Recommendation | null {

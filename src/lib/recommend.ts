@@ -14,6 +14,19 @@ export interface SituationTypeMatch {
   hits: string[];
 }
 
+export type WorkStage =
+  | "Idea"
+  | "Planning"
+  | "Drafting"
+  | "Building"
+  | "Refining"
+  | "Reviewing"
+  | "Shipping"
+  | "Post-Launch";
+
+export type AIFit = "Yes" | "Limited" | "No";
+export type Complexity = "Minimal" | "Light" | "Standard" | "Heavy";
+
 export interface Recommendation {
   primary: Mode;
   primaryRole: CognitiveRole;
@@ -24,8 +37,13 @@ export interface Recommendation {
   explanation: string;
   combinedPrompt: string;
   confidence: number;
-  situationTypes: SituationTypeMatch[]; // detected types, ranked
-  situationReason: string; // why these modes for this type
+  situationTypes: SituationTypeMatch[];
+  situationReason: string;
+  stage: WorkStage;
+  deliverable: string;
+  aiRecommended: AIFit;
+  aiReason: string;
+  complexity: Complexity;
 }
 
 // ---- Cognitive role registry ----
@@ -39,8 +57,8 @@ const ROLE_MAP: Record<string, RoleSpec> = {
   owl:        { role: "perspective", contribution: "wide-angle analysis that surfaces what is being missed" },
   alien:      { role: "perspective", contribution: "outsider reframing that breaks default assumptions" },
   architect:  { role: "perspective", contribution: "structural coherence across the whole system" },
-  shadow:     { role: "risk",        contribution: "quiet pattern collection that surfaces hidden risks" },
-  raven:      { role: "risk",        contribution: "contrarian stress-test that hunts weak points" },
+  raven:      { role: "perspective", contribution: "associative, symbolic, emotionally resonant creative angle" },
+  shadow:     { role: "risk",        contribution: "skeptical adversary stress-testing for weaknesses and exploits" },
   hawk:       { role: "execution",   contribution: "single-target precision for the next concrete action" },
   apex:       { role: "execution",   contribution: "no-compromise quality bar on the final output" },
   captain:    { role: "execution",   contribution: "decisive command voice that commits to a direction" },
@@ -48,6 +66,9 @@ const ROLE_MAP: Record<string, RoleSpec> = {
   clear:      { role: "execution",   contribution: "plain-language clarity for the reader" },
   glove:      { role: "execution",   contribution: "firm boundary-holding without admissions or waivers" },
   diplomat:   { role: "execution",   contribution: "respectful, measured tone that de-escalates" },
+  curator:    { role: "execution",   contribution: "selects strongest options and refines for elegance" },
+  whaler:     { role: "execution",   contribution: "patient pursuit of a single high-value client or deal" },
+  "wild-bird-seed": { role: "execution", contribution: "attraction-based value scattering for inbound leads" },
   "gomer-pyle": { role: "perspective", contribution: "folksy comedic voice for satire and parody" },
 };
 

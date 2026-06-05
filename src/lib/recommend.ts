@@ -50,7 +50,10 @@ export interface Recommendation {
   recommendedAction: string;
   missingPrerequisites: string[];
   bottleneck: string;
+  stageEvidence: string[];
+  deliverableEvidence: string[];
 }
+
 
 // ---- Cognitive role registry ----
 

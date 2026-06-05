@@ -787,8 +787,12 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
       : ``) +
     (avoid ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
 
-  const stage = detectStage(text);
-  const deliverable = detectDeliverable(text, primaryType?.type ?? null);
+  const { stage, evidence: stageEvidence } = detectStage(text);
+  const { deliverable, evidence: deliverableEvidence } = detectDeliverable(
+    text,
+    primaryType?.type ?? null,
+    stage,
+  );
   const missingPrerequisites = detectPrerequisites(text, deliverable);
   const { isHuman: bottleneckIsHuman, reason: bottleneckReason } = detectBottleneck(text, stage);
   const { fit: aiRecommended, reason: aiReason } = assessAIFit(
@@ -842,7 +846,10 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     recommendedAction,
     missingPrerequisites,
     bottleneck: bottleneckIsHuman ? bottleneckReason : "",
+    stageEvidence,
+    deliverableEvidence,
   };
+
 }
 
 // ---- Avoid selection ----

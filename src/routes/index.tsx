@@ -181,10 +181,17 @@ function HomePage() {
               tone={rec.aiRecommended === "Yes" ? "good" : rec.aiRecommended === "Limited" ? "warn" : "bad"}
             />
             <Stat label="DELIVERABLE" value={rec.deliverable} wide />
+            {rec.stageEvidence.length > 0 && (
+              <EvidenceBlock label="STAGE EVIDENCE" items={rec.stageEvidence} />
+            )}
+            {rec.deliverableEvidence.length > 0 && (
+              <EvidenceBlock label="DELIVERABLE EVIDENCE" items={rec.deliverableEvidence} />
+            )}
             <div className="col-span-2 text-[11px] text-muted-foreground leading-relaxed">
               {rec.aiReason}
             </div>
           </div>
+
 
           <div className="hud-panel hud-corner p-4 space-y-2 border-primary/40">
             <SectionLabel>RECOMMENDED NEXT ACTION</SectionLabel>

@@ -22,7 +22,10 @@ export type WorkStage =
   | "Refining"
   | "Reviewing"
   | "Shipping"
-  | "Post-Launch";
+  | "Post-Launch"
+  | "Growth"
+  | "Scaling";
+
 
 export type AIFit = "Yes" | "Limited" | "No";
 export type Complexity = "Minimal" | "Light" | "Standard" | "Heavy";
@@ -47,7 +50,10 @@ export interface Recommendation {
   recommendedAction: string;
   missingPrerequisites: string[];
   bottleneck: string;
+  stageEvidence: string[];
+  deliverableEvidence: string[];
 }
+
 
 // ---- Cognitive role registry ----
 
@@ -378,15 +384,109 @@ function computeConfidence(
 
 // ---- Stage / Deliverable / AI-fit detection ----
 
-function detectStage(text: string): WorkStage {
-  if (/\b(post.?launch|after launch|already shipped|in production|retention|churn)\b/.test(text)) return "Post-Launch";
-  if (/\b(ship|launch|publish|go live|deploy|release)\b/.test(text)) return "Shipping";
-  if (/\b(review|audit|red.?team|red team|stress test|critique|feedback on)\b/.test(text)) return "Reviewing";
-  if (/\b(refine|polish|edit|tighten|cleanup|clean up|revise)\b/.test(text)) return "Refining";
-  if (/\b(build|implement|code|develop|construct|wire up)\b/.test(text)) return "Building";
-  if (/\b(draft|write|outline|sketch|first version|first pass)\b/.test(text)) return "Drafting";
-  if (/\b(plan|planning|roadmap|strategy|map out|scope|decide)\b/.test(text)) return "Planning";
-  return "Idea";
+// Phrases that prove the business is established (block "Idea" stage).
+const ESTABLISHED_SIGNALS: Array<{ rx: RegExp; label: string }> = [
+  { rx: /\b(\d{2,})\s+(paid|completed|finished)\s+(jobs|projects|gigs|contracts)\b/, label: "paid jobs completed" },
+  { rx: /\bpaid jobs\b/, label: "paid jobs" },
+  { rx: /\bpaying customers?\b/, label: "paying customers" },
+  { rx: /\brecurring clients?\b/, label: "recurring clients" },
+  { rx: /\brepeat business\b/, label: "repeat business" },
+  { rx: /\brepeat customers?\b/, label: "repeat customers" },
+  { rx: /\bdocumented workflows?\b/, label: "documented workflows" },
+  { rx: /\bexisting (pricing sheets?|price list|service catalog)\b/, label: "existing pricing sheets" },
+  { rx: /\b(we|i) (already )?have (a |our )?(pricing sheet|price list|service catalog|sop|playbook)/, label: "already has core docs" },
+  { rx: /\bvendor relationships?\b/, label: "vendor relationships" },
+  { rx: /\b(established|existing|running|operating) (business|company|firm|practice|shop)\b/, label: "established business" },
+  { rx: /\b(law firm clients?|recurring law firm)\b/, label: "recurring law firm clients" },
+  { rx: /\b(monthly|weekly) (revenue|jobs|clients)\b/, label: "recurring monthly volume" },
+];
+
+// Scaling / Growth volume language.
+const SCALING_SIGNALS: Array<{ rx: RegExp; label: string }> = [
+  { rx: /\b(scal(e|ing)|scale up|scale from)\b/, label: "scaling language" },
+  { rx: /\bhigher volume|increase(d|s)? volume|more volume\b/, label: "higher volume" },
+  { rx: /\bfrom\s+\d+\s+to\s+\d+\s+(jobs|clients|customers|orders)\b/, label: "explicit volume increase goal" },
+  { rx: /\b(\d+)\s+to\s+(\d+)\s+(jobs|clients|customers|orders)\s*\/?\s*(month|mo|week|wk)\b/, label: "monthly volume goal" },
+  { rx: /\bgrow(th|ing)\b/, label: "growth language" },
+  { rx: /\bhandle (more|higher)\b/, label: "handle more volume" },
+];
+
+const OPS_SYSTEM_SIGNALS: Array<{ rx: RegExp; label: string }> = [
+  { rx: /\bsched(ule|uling)\b/, label: "scheduling" },
+  { rx: /\bdispatch(ing)?\b/, label: "dispatching" },
+  { rx: /\bstatus track(ing)?\b/, label: "status tracking" },
+  { rx: /\bquality control\b/, label: "quality control" },
+  { rx: /\brout(e|ing) jobs?\b/, label: "routing jobs" },
+  { rx: /\bhandle (higher|more) volume\b/, label: "handling higher volume" },
+  { rx: /\bjobs?\s*\/?\s*(month|mo|week|wk)\b/, label: "monthly job volume target" },
+];
+
+function detectStage(text: string): { stage: WorkStage; evidence: string[] } {
+  const evidence: string[] = [];
+
+  const established = ESTABLISHED_SIGNALS.filter((s) => s.rx.test(text));
+  const scaling = SCALING_SIGNALS.filter((s) => s.rx.test(text));
+
+  // Rule 1+4: if business is established, never return "Idea".
+  if (established.length || scaling.length) {
+    established.forEach((s) => evidence.push(s.label));
+    scaling.forEach((s) => evidence.push(s.label));
+    if (scaling.length || /\bvolume|jobs?\s*\/\s*(month|week)|from\s+\d+\s+to\s+\d+/.test(text)) {
+      return { stage: "Scaling", evidence };
+    }
+    return { stage: "Growth", evidence };
+  }
+
+  if (/\b(post.?launch|after launch|already shipped|in production|retention|churn)\b/.test(text)) {
+    evidence.push("post-launch language");
+    return { stage: "Post-Launch", evidence };
+  }
+  if (/\b(ship|launch|publish|go live|deploy|release)\b/.test(text)) {
+    evidence.push("shipping language");
+    return { stage: "Shipping", evidence };
+  }
+  if (/\b(review|audit|red.?team|red team|stress test|critique|feedback on)\b/.test(text)) {
+    evidence.push("review language");
+    return { stage: "Reviewing", evidence };
+  }
+  if (/\b(refine|polish|edit|tighten|cleanup|clean up|revise)\b/.test(text)) {
+    evidence.push("refining language");
+    return { stage: "Refining", evidence };
+  }
+  if (/\b(build|implement|code|develop|construct|wire up)\b/.test(text)) {
+    evidence.push("building language");
+    return { stage: "Building", evidence };
+  }
+  if (/\b(draft|write|outline|sketch|first version|first pass)\b/.test(text)) {
+    evidence.push("drafting language");
+    return { stage: "Drafting", evidence };
+  }
+  if (/\b(plan|planning|roadmap|strategy|map out|scope|decide)\b/.test(text)) {
+    evidence.push("planning language");
+    return { stage: "Planning", evidence };
+  }
+  evidence.push("no stage-specific signals — defaulting to early ideation");
+  return { stage: "Idea", evidence };
+}
+
+// Phrases that mean "I already have X" — block recommending X.
+const ALREADY_HAVE_PATTERNS: Array<{ rx: RegExp; deliverable: string }> = [
+  { rx: /\b(we|i) (already )?have (a |our |an )?pricing (sheet|page|table|list)/, deliverable: "Pricing Sheet" },
+  { rx: /\bexisting pricing (sheets?|page|table|list)/, deliverable: "Pricing Sheet" },
+  { rx: /\b(we|i) (already )?have (a |our |an )?service catalog/, deliverable: "Service Catalog" },
+  { rx: /\bexisting service catalog/, deliverable: "Service Catalog" },
+  { rx: /\b(we|i) (already )?have (a |our |an )?vendor (info|information|sheet|packet)/, deliverable: "Vendor Information Sheet" },
+  { rx: /\b(we|i) (already )?have (a |our |an )?(sop|operating procedure|playbook)/, deliverable: "Operating Procedure" },
+  { rx: /\b(we|i) (already )?have (a |our |an )?client acquisition plan/, deliverable: "Client Acquisition Plan" },
+  { rx: /\bdocumented workflows?\b/, deliverable: "Operating Procedure" },
+];
+
+function detectAlreadyHave(text: string): Set<string> {
+  const have = new Set<string>();
+  for (const p of ALREADY_HAVE_PATTERNS) {
+    if (p.rx.test(text)) have.add(p.deliverable);
+  }
+  return have;
 }
 
 const DELIVERABLE_PATTERNS: Array<{ rx: RegExp; label: string }> = [
@@ -430,15 +530,64 @@ const DEFAULT_DELIVERABLE_BY_TYPE: Record<string, string> = {
   "Troubleshooting": "Root-cause + fix",
 };
 
-function detectDeliverable(text: string, situationType: string | null): string {
+
+
+function detectDeliverable(
+  text: string,
+  situationType: string | null,
+  stage: WorkStage,
+): { deliverable: string; evidence: string[] } {
+  const evidence: string[] = [];
+  const already = detectAlreadyHave(text);
+  if (already.size) {
+    evidence.push(`user already has: ${[...already].join(", ")}`);
+  }
+
+  // Operations system signals override generic deliverables when scheduling /
+  // dispatching / status tracking / quality control / volume handling appear.
+  const opsHits = OPS_SYSTEM_SIGNALS.filter((s) => s.rx.test(text));
+  if (opsHits.length >= 2) {
+    opsHits.forEach((h) => evidence.push(`user requested ${h.label}`));
+    const hasScheduling = opsHits.some((h) => /sched|dispatch|rout/.test(h.label));
+    const hasQA = opsHits.some((h) => /quality|status/.test(h.label));
+    if (hasScheduling && hasQA) {
+      return { deliverable: "Dispatch Workflow + Quality Control Plan", evidence };
+    }
+    return { deliverable: "Operations System", evidence };
+  }
+
+  // Established + scaling without ops signals → Scaling Plan.
+  if ((stage === "Scaling" || stage === "Growth") && opsHits.length === 0) {
+    if (!already.has("Operating Procedure")) {
+      evidence.push("established business looking to scale");
+      return { deliverable: "Scaling Plan", evidence };
+    }
+  }
+
   for (const p of DELIVERABLE_PATTERNS) {
-    if (p.rx.test(text)) return p.label;
+    if (p.rx.test(text) && !already.has(p.label)) {
+      evidence.push(`mentioned ${p.label.toLowerCase()}`);
+      return { deliverable: p.label, evidence };
+    }
   }
+
   if (situationType && DEFAULT_DELIVERABLE_BY_TYPE[situationType]) {
-    return DEFAULT_DELIVERABLE_BY_TYPE[situationType];
+    const candidate = DEFAULT_DELIVERABLE_BY_TYPE[situationType];
+    if (!already.has(candidate)) {
+      evidence.push(`default deliverable for ${situationType}`);
+      return { deliverable: candidate, evidence };
+    }
+    // Already have the default — suggest the next logical step.
+    if (situationType === "Operations") {
+      evidence.push("user already has core ops docs — next step is a full system");
+      return { deliverable: "Operations System", evidence };
+    }
   }
-  return "Clarify the next concrete deliverable before generating";
+
+  evidence.push("no clear deliverable signals");
+  return { deliverable: "Clarify the next concrete deliverable before generating", evidence };
 }
+
 
 // ---- Prerequisites & Recommended Action ----
 
@@ -638,8 +787,12 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
       : ``) +
     (avoid ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
 
-  const stage = detectStage(text);
-  const deliverable = detectDeliverable(text, primaryType?.type ?? null);
+  const { stage, evidence: stageEvidence } = detectStage(text);
+  const { deliverable, evidence: deliverableEvidence } = detectDeliverable(
+    text,
+    primaryType?.type ?? null,
+    stage,
+  );
   const missingPrerequisites = detectPrerequisites(text, deliverable);
   const { isHuman: bottleneckIsHuman, reason: bottleneckReason } = detectBottleneck(text, stage);
   const { fit: aiRecommended, reason: aiReason } = assessAIFit(
@@ -693,7 +846,10 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     recommendedAction,
     missingPrerequisites,
     bottleneck: bottleneckIsHuman ? bottleneckReason : "",
+    stageEvidence,
+    deliverableEvidence,
   };
+
 }
 
 // ---- Avoid selection ----

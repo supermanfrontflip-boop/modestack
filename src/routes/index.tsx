@@ -181,10 +181,17 @@ function HomePage() {
               tone={rec.aiRecommended === "Yes" ? "good" : rec.aiRecommended === "Limited" ? "warn" : "bad"}
             />
             <Stat label="DELIVERABLE" value={rec.deliverable} wide />
+            {rec.stageEvidence.length > 0 && (
+              <EvidenceBlock label="STAGE EVIDENCE" items={rec.stageEvidence} />
+            )}
+            {rec.deliverableEvidence.length > 0 && (
+              <EvidenceBlock label="DELIVERABLE EVIDENCE" items={rec.deliverableEvidence} />
+            )}
             <div className="col-span-2 text-[11px] text-muted-foreground leading-relaxed">
               {rec.aiReason}
             </div>
           </div>
+
 
           <div className="hud-panel hud-corner p-4 space-y-2 border-primary/40">
             <SectionLabel>RECOMMENDED NEXT ACTION</SectionLabel>
@@ -343,7 +350,24 @@ function Stat({
   );
 }
 
+function EvidenceBlock({ label, items }: { label: string; items: string[] }) {
+  return (
+    <div className="col-span-2 border-t border-border/60 pt-2">
+      <div className="text-[9px] mono tracking-[0.25em] text-muted-foreground">{label}</div>
+      <ul className="mt-1 space-y-0.5">
+        {items.map((it) => (
+          <li key={it} className="text-[11px] text-foreground/85 flex items-start gap-1.5">
+            <span className="text-primary mono mt-0.5">·</span>
+            <span>{it}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function ConfidenceMeter({ value }: { value: number }) {
+
   const tier = value >= 80 ? "HIGH" : value >= 55 ? "MEDIUM" : "LOW";
   const color =
     value >= 80 ? "bg-primary" : value >= 55 ? "bg-yellow-400" : "bg-destructive";

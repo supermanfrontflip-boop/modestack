@@ -440,9 +440,95 @@ function detectDeliverable(text: string, situationType: string | null): string {
   return "Clarify the next concrete deliverable before generating";
 }
 
-function assessAIFit(text: string, deliverable: string): { fit: AIFit; reason: string } {
-  if (/\b(in person|in-person|sign the|notarize|physically|show up to court|on the phone with|call them and)\b/.test(text)) {
+// ---- Prerequisites & Recommended Action ----
+
+const PREREQUISITES: Record<string, string[]> = {
+  "Client Acquisition Plan": ["Service Catalog", "Pricing Sheet", "Vendor/Capabilities Packet", "Ideal Client Profile"],
+  "Marketing Campaign Plan": ["Positioning Statement", "Target Audience Profile", "Offer / Pricing Sheet"],
+  "Outreach Campaign": ["Target List", "Service Catalog", "Pricing Sheet", "Offer / Hook"],
+  "Email Sequence": ["Target Audience Profile", "Lead Magnet or Offer", "Brand Voice Notes"],
+  "Pitch Deck Outline": ["Problem Statement", "Market Sizing", "Traction / Proof Points", "Financial Snapshot"],
+  "Landing Page Copy": ["Positioning Statement", "Offer Details", "Target Audience Profile"],
+  "Scaling Plan": ["Current Workflow Map", "Capacity Analysis", "Revenue Breakdown", "Operating Procedure"],
+  "Operating Procedure": ["Current Workflow Map", "Roles & Responsibilities", "Tools / Systems Inventory"],
+  "Service Catalog": ["List of Offerings", "Pricing Sheet", "Delivery Process Notes"],
+  "Lead Magnet": ["Target Audience Profile", "Positioning Statement"],
+  "Legal Response Draft": ["Underlying Documents / Filings", "Timeline of Events", "Desired Outcome"],
+  "Counter-proposal draft": ["Original Offer Terms", "Walk-away Conditions", "Priority Tradeoffs"],
+  "Roadmap with milestones": ["Goal / North Star", "Capacity & Resources", "Known Constraints"],
+};
+
+function detectPrerequisites(text: string, deliverable: string): string[] {
+  const list = PREREQUISITES[deliverable];
+  if (!list) return [];
+  // Assume each prerequisite is missing unless the user explicitly mentions it.
+  return list.filter((p) => {
+    const key = p.toLowerCase().split(/[\/&]/)[0].trim();
+    return !text.includes(key);
+  });
+}
+
+// Bottleneck detection: signals that the real next step is human action, not AI generation.
+const ACTION_SIGNALS = [
+  "contact", "call", "email them", "reach out", "send to", "follow up with",
+  "meet with", "talk to", "interview", "hire", "fire", "negotiate with",
+  "file with", "show up", "deliver to", "ship to", "drive to", "visit",
+];
+
+function detectBottleneck(text: string, stage: WorkStage): { isHuman: boolean; reason: string } {
+  for (const sig of ACTION_SIGNALS) {
+    if (text.includes(sig)) {
+      return {
+        isHuman: true,
+        reason: `The bottleneck is real-world action ("${sig}…"), not content generation. Use AI sparingly to prep, not to replace, the human step.`,
+      };
+    }
+  }
+  if (stage === "Post-Launch" && /\b(retention|churn|customer)\b/.test(text)) {
+    return {
+      isHuman: true,
+      reason: "Post-launch retention is driven by human follow-up and product changes, not drafting.",
+    };
+  }
+  return { isHuman: false, reason: "" };
+}
+
+function deriveRecommendedAction(
+  deliverable: string,
+  missing: string[],
+  bottleneckIsHuman: boolean,
+  text: string,
+): string {
+  if (missing.length) {
+    return `Produce the missing prerequisite first: ${missing[0]}.`;
+  }
+  if (bottleneckIsHuman) {
+    const m = ACTION_SIGNALS.find((s) => text.includes(s));
+    return m
+      ? `Take the real-world action (${m}…) — use AI only to prep talking points or templates.`
+      : `Take the next real-world action — AI is not the bottleneck here.`;
+  }
+  return `Produce a first draft of: ${deliverable}.`;
+}
+
+function assessAIFit(
+  text: string,
+  deliverable: string,
+  bottleneckIsHuman: boolean,
+  bottleneckReason: string,
+  missing: string[],
+): { fit: AIFit; reason: string } {
+  if (/\b(in person|in-person|sign the|notarize|physically|show up to court)\b/.test(text)) {
     return { fit: "No", reason: "This step requires real-world or in-person action that AI cannot perform." };
+  }
+  if (bottleneckIsHuman) {
+    return { fit: "Limited", reason: bottleneckReason };
+  }
+  if (missing.length >= 2) {
+    return {
+      fit: "Limited",
+      reason: `Several prerequisites are missing (${missing.slice(0, 2).join(", ")}…). AI can help build them one at a time, but cannot skip ahead to the final deliverable.`,
+    };
   }
   if (/\b(legal advice|medical advice|diagnose|prescribe|file with the court|represent me)\b/.test(text)) {
     return {

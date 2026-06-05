@@ -22,7 +22,10 @@ export type WorkStage =
   | "Refining"
   | "Reviewing"
   | "Shipping"
-  | "Post-Launch";
+  | "Post-Launch"
+  | "Growth"
+  | "Scaling";
+
 
 export type AIFit = "Yes" | "Limited" | "No";
 export type Complexity = "Minimal" | "Light" | "Standard" | "Heavy";

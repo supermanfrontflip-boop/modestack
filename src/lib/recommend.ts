@@ -640,7 +640,21 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
 
   const stage = detectStage(text);
   const deliverable = detectDeliverable(text, primaryType?.type ?? null);
-  const { fit: aiRecommended, reason: aiReason } = assessAIFit(text, deliverable);
+  const missingPrerequisites = detectPrerequisites(text, deliverable);
+  const { isHuman: bottleneckIsHuman, reason: bottleneckReason } = detectBottleneck(text, stage);
+  const { fit: aiRecommended, reason: aiReason } = assessAIFit(
+    text,
+    deliverable,
+    bottleneckIsHuman,
+    bottleneckReason,
+    missingPrerequisites,
+  );
+  const recommendedAction = deriveRecommendedAction(
+    deliverable,
+    missingPrerequisites,
+    bottleneckIsHuman,
+    text,
+  );
   const complexity = assessComplexity(
     roleOf(primaryMode).role,
     supporting.length,
@@ -676,6 +690,9 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     aiRecommended,
     aiReason,
     complexity,
+    recommendedAction,
+    missingPrerequisites,
+    bottleneck: bottleneckIsHuman ? bottleneckReason : "",
   };
 }
 

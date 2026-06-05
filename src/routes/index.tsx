@@ -186,6 +186,33 @@ function HomePage() {
             </div>
           </div>
 
+          <div className="hud-panel hud-corner p-4 space-y-2 border-primary/40">
+            <SectionLabel>RECOMMENDED NEXT ACTION</SectionLabel>
+            <p className="text-sm text-foreground leading-relaxed">{rec.recommendedAction}</p>
+            {rec.bottleneck && (
+              <p className="text-[11px] text-yellow-400/90 leading-relaxed">
+                Bottleneck: {rec.bottleneck}
+              </p>
+            )}
+          </div>
+
+          {rec.missingPrerequisites.length > 0 && (
+            <div className="hud-panel p-4 space-y-2 border-yellow-400/40">
+              <SectionLabel>MISSING PREREQUISITES</SectionLabel>
+              <ul className="space-y-1">
+                {rec.missingPrerequisites.map((p) => (
+                  <li key={p} className="text-sm text-foreground/90 flex items-start gap-2">
+                    <span className="text-yellow-400 mono text-xs mt-0.5">▸</span>
+                    <span>{p}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">
+                Build these first — the target deliverable depends on them.
+              </p>
+            </div>
+          )}
+
           <ConfidenceMeter value={rec.confidence} />
 
 

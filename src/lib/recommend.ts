@@ -532,15 +532,62 @@ const DEFAULT_DELIVERABLE_BY_TYPE: Record<string, string> = {
 
 
 
-function detectDeliverable(text: string, situationType: string | null): string {
+function detectDeliverable(
+  text: string,
+  situationType: string | null,
+  stage: WorkStage,
+): { deliverable: string; evidence: string[] } {
+  const evidence: string[] = [];
+  const already = detectAlreadyHave(text);
+  if (already.size) {
+    evidence.push(`user already has: ${[...already].join(", ")}`);
+  }
+
+  // Operations system signals override generic deliverables when scheduling /
+  // dispatching / status tracking / quality control / volume handling appear.
+  const opsHits = OPS_SYSTEM_SIGNALS.filter((s) => s.rx.test(text));
+  if (opsHits.length >= 2) {
+    opsHits.forEach((h) => evidence.push(`user requested ${h.label}`));
+    const hasScheduling = opsHits.some((h) => /sched|dispatch|rout/.test(h.label));
+    const hasQA = opsHits.some((h) => /quality|status/.test(h.label));
+    if (hasScheduling && hasQA) {
+      return { deliverable: "Dispatch Workflow + Quality Control Plan", evidence };
+    }
+    return { deliverable: "Operations System", evidence };
+  }
+
+  // Established + scaling without ops signals → Scaling Plan.
+  if ((stage === "Scaling" || stage === "Growth") && opsHits.length === 0) {
+    if (!already.has("Operating Procedure")) {
+      evidence.push("established business looking to scale");
+      return { deliverable: "Scaling Plan", evidence };
+    }
+  }
+
   for (const p of DELIVERABLE_PATTERNS) {
-    if (p.rx.test(text)) return p.label;
+    if (p.rx.test(text) && !already.has(p.label)) {
+      evidence.push(`mentioned ${p.label.toLowerCase()}`);
+      return { deliverable: p.label, evidence };
+    }
   }
+
   if (situationType && DEFAULT_DELIVERABLE_BY_TYPE[situationType]) {
-    return DEFAULT_DELIVERABLE_BY_TYPE[situationType];
+    const candidate = DEFAULT_DELIVERABLE_BY_TYPE[situationType];
+    if (!already.has(candidate)) {
+      evidence.push(`default deliverable for ${situationType}`);
+      return { deliverable: candidate, evidence };
+    }
+    // Already have the default — suggest the next logical step.
+    if (situationType === "Operations") {
+      evidence.push("user already has core ops docs — next step is a full system");
+      return { deliverable: "Operations System", evidence };
+    }
   }
-  return "Clarify the next concrete deliverable before generating";
+
+  evidence.push("no clear deliverable signals");
+  return { deliverable: "Clarify the next concrete deliverable before generating", evidence };
 }
+
 
 // ---- Prerequisites & Recommended Action ----
 

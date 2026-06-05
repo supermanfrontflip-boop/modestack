@@ -44,6 +44,9 @@ export interface Recommendation {
   aiRecommended: AIFit;
   aiReason: string;
   complexity: Complexity;
+  recommendedAction: string;
+  missingPrerequisites: string[];
+  bottleneck: string;
 }
 
 // ---- Cognitive role registry ----

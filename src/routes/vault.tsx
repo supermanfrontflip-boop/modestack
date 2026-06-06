@@ -32,11 +32,55 @@ function VaultPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingImport, setPendingImport] = useState<{ modes: Mode[]; errors: string[] } | null>(null);
 
+  const [exportPreview, setExportPreview] = useState<{
+    filename: string;
+    csv: string;
+    headers: string[];
+    firstRow: string[] | null;
+    rowCount: number;
+    columnCount: number;
+  } | null>(null);
+
   const onExport = () => {
-    const csv = modesToCSV(modes);
-    const date = new Date().toISOString().slice(0, 10);
-    downloadCSV(`prompt-vault-${date}.csv`, csv);
-    toast.success(`Exported ${modes.length} modes`);
+    try {
+      if (modes.length === 0) {
+        toast.error("Export failed", { description: "Vault is empty — nothing to export." });
+        return;
+      }
+      const csv = modesToCSV(modes);
+      const lines = csv.split("\n");
+      const headers = lines[0].split(",");
+      const firstDataRow = lines[1] ? lines[1].split(",") : null;
+      const date = new Date().toISOString().slice(0, 10);
+      const filename = `prompt-vault-${date}.csv`;
+      setExportPreview({
+        filename,
+        csv,
+        headers,
+        firstRow: firstDataRow,
+        rowCount: modes.length,
+        columnCount: headers.length,
+      });
+    } catch (err) {
+      toast.error("Export failed", {
+        description: err instanceof Error ? err.message : "Unknown error generating CSV.",
+      });
+    }
+  };
+
+  const confirmExport = () => {
+    if (!exportPreview) return;
+    try {
+      downloadCSV(exportPreview.filename, exportPreview.csv);
+      toast.success("Export successful", {
+        description: `${exportPreview.filename} — ${exportPreview.rowCount} rows × ${exportPreview.columnCount} columns`,
+      });
+      setExportPreview(null);
+    } catch (err) {
+      toast.error("Export failed", {
+        description: err instanceof Error ? err.message : "Browser blocked the download.",
+      });
+    }
   };
 
   const onImportClick = () => fileInputRef.current?.click();

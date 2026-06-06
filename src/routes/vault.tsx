@@ -298,6 +298,76 @@ function VaultPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!exportPreview} onOpenChange={(o) => !o && setExportPreview(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="mono tracking-widest text-primary">EXPORT PREVIEW</DialogTitle>
+            <DialogDescription>Review the CSV before download.</DialogDescription>
+          </DialogHeader>
+          {exportPreview && (
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-3 gap-2">
+                <Stat k="Rows" v={String(exportPreview.rowCount)} />
+                <Stat k="Columns" v={String(exportPreview.columnCount)} />
+                <Stat k="File" v={exportPreview.filename} mono />
+              </div>
+              <div>
+                <div className="text-[10px] mono tracking-widest text-muted-foreground mb-1">
+                  COLUMN HEADERS
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {exportPreview.headers.map((h) => (
+                    <span key={h} className="mono text-[10px] px-1.5 py-0.5 rounded bg-background/60 border border-border text-foreground/85">
+                      {h}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] mono tracking-widest text-muted-foreground mb-1">
+                  FIRST ROW
+                </div>
+                <div className="max-h-56 overflow-auto border border-border rounded-md bg-background/60">
+                  {exportPreview.firstRow ? (
+                    <table className="w-full text-[11px]">
+                      <tbody>
+                        {exportPreview.headers.map((h, i) => (
+                          <tr key={h} className="border-b border-border/40 last:border-0">
+                            <td className="mono text-muted-foreground px-2 py-1 align-top whitespace-nowrap">
+                              {h}
+                            </td>
+                            <td className="px-2 py-1 text-foreground/85 break-all">
+                              {exportPreview.firstRow![i] ?? ""}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="p-3 text-muted-foreground">No data rows.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setExportPreview(null)}>Cancel</Button>
+            <Button onClick={confirmExport} className="mono tracking-wider">
+              <Download className="h-4 w-4 mr-1.5" /> DOWNLOAD
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function Stat({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
+  return (
+    <div className="hud-panel p-2">
+      <div className="text-[9px] mono tracking-widest text-muted-foreground">{k.toUpperCase()}</div>
+      <div className={`text-xs text-foreground ${mono ? "font-mono break-all" : ""}`}>{v}</div>
     </div>
   );
 }

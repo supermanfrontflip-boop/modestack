@@ -32,11 +32,55 @@ function VaultPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingImport, setPendingImport] = useState<{ modes: Mode[]; errors: string[] } | null>(null);
 
+  const [exportPreview, setExportPreview] = useState<{
+    filename: string;
+    csv: string;
+    headers: string[];
+    firstRow: string[] | null;
+    rowCount: number;
+    columnCount: number;
+  } | null>(null);
+
   const onExport = () => {
-    const csv = modesToCSV(modes);
-    const date = new Date().toISOString().slice(0, 10);
-    downloadCSV(`prompt-vault-${date}.csv`, csv);
-    toast.success(`Exported ${modes.length} modes`);
+    try {
+      if (modes.length === 0) {
+        toast.error("Export failed", { description: "Vault is empty — nothing to export." });
+        return;
+      }
+      const csv = modesToCSV(modes);
+      const lines = csv.split("\n");
+      const headers = lines[0].split(",");
+      const firstDataRow = lines[1] ? lines[1].split(",") : null;
+      const date = new Date().toISOString().slice(0, 10);
+      const filename = `prompt-vault-${date}.csv`;
+      setExportPreview({
+        filename,
+        csv,
+        headers,
+        firstRow: firstDataRow,
+        rowCount: modes.length,
+        columnCount: headers.length,
+      });
+    } catch (err) {
+      toast.error("Export failed", {
+        description: err instanceof Error ? err.message : "Unknown error generating CSV.",
+      });
+    }
+  };
+
+  const confirmExport = () => {
+    if (!exportPreview) return;
+    try {
+      downloadCSV(exportPreview.filename, exportPreview.csv);
+      toast.success("Export successful", {
+        description: `${exportPreview.filename} — ${exportPreview.rowCount} rows × ${exportPreview.columnCount} columns`,
+      });
+      setExportPreview(null);
+    } catch (err) {
+      toast.error("Export failed", {
+        description: err instanceof Error ? err.message : "Browser blocked the download.",
+      });
+    }
   };
 
   const onImportClick = () => fileInputRef.current?.click();
@@ -254,6 +298,76 @@ function VaultPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!exportPreview} onOpenChange={(o) => !o && setExportPreview(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="mono tracking-widest text-primary">EXPORT PREVIEW</DialogTitle>
+            <DialogDescription>Review the CSV before download.</DialogDescription>
+          </DialogHeader>
+          {exportPreview && (
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-3 gap-2">
+                <Stat k="Rows" v={String(exportPreview.rowCount)} />
+                <Stat k="Columns" v={String(exportPreview.columnCount)} />
+                <Stat k="File" v={exportPreview.filename} mono />
+              </div>
+              <div>
+                <div className="text-[10px] mono tracking-widest text-muted-foreground mb-1">
+                  COLUMN HEADERS
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {exportPreview.headers.map((h) => (
+                    <span key={h} className="mono text-[10px] px-1.5 py-0.5 rounded bg-background/60 border border-border text-foreground/85">
+                      {h}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] mono tracking-widest text-muted-foreground mb-1">
+                  FIRST ROW
+                </div>
+                <div className="max-h-56 overflow-auto border border-border rounded-md bg-background/60">
+                  {exportPreview.firstRow ? (
+                    <table className="w-full text-[11px]">
+                      <tbody>
+                        {exportPreview.headers.map((h, i) => (
+                          <tr key={h} className="border-b border-border/40 last:border-0">
+                            <td className="mono text-muted-foreground px-2 py-1 align-top whitespace-nowrap">
+                              {h}
+                            </td>
+                            <td className="px-2 py-1 text-foreground/85 break-all">
+                              {exportPreview.firstRow![i] ?? ""}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div className="p-3 text-muted-foreground">No data rows.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setExportPreview(null)}>Cancel</Button>
+            <Button onClick={confirmExport} className="mono tracking-wider">
+              <Download className="h-4 w-4 mr-1.5" /> DOWNLOAD
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function Stat({ k, v, mono }: { k: string; v: string; mono?: boolean }) {
+  return (
+    <div className="hud-panel p-2">
+      <div className="text-[9px] mono tracking-widest text-muted-foreground">{k.toUpperCase()}</div>
+      <div className={`text-xs text-foreground ${mono ? "font-mono break-all" : ""}`}>{v}</div>
     </div>
   );
 }

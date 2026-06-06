@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { SEED_MODES, type Mode } from "./modes-data";
+import { SEED_MODES, normalizeMode, type Mode } from "./modes-data";
 
 const MODES_KEY = "pcc.modes.v1";
 const FAVS_KEY = "pcc.favorites.v1";
@@ -29,20 +29,23 @@ function write<T>(key: string, value: T) {
 }
 
 function loadModes(): Mode[] {
-  const stored = read<Mode[] | null>(MODES_KEY, null);
+  const stored = read<Partial<Mode>[] | null>(MODES_KEY, null);
   if (!stored || stored.length === 0) {
     write(MODES_KEY, SEED_MODES);
     return SEED_MODES;
   }
-  // Merge any new seed modes that aren't in storage yet (by id)
-  const ids = new Set(stored.map((m) => m.id));
+  // Normalize legacy records so v2 fields (subcategory, coreObjective, etc.) exist.
+  const normalized = stored
+    .filter((m): m is Partial<Mode> & { id: string; mode: string } => !!m && !!m.id && !!m.mode)
+    .map(normalizeMode);
+  const ids = new Set(normalized.map((m) => m.id));
   const missing = SEED_MODES.filter((m) => !ids.has(m.id));
   if (missing.length) {
-    const merged = [...stored, ...missing];
+    const merged = [...normalized, ...missing];
     write(MODES_KEY, merged);
     return merged;
   }
-  return stored;
+  return normalized;
 }
 
 export function useModes() {

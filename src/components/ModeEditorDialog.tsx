@@ -5,24 +5,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { toast } from "sonner";
 import { makeId } from "@/lib/vault-store";
-import type { Mode, Intensity } from "@/lib/modes-data";
+import { normalizeMode, type Mode, type Intensity } from "@/lib/modes-data";
 
-const blank: Mode = {
-  id: "",
-  mode: "",
-  category: "",
-  purpose: "",
-  bestFor: "",
-  avoidWhen: "",
-  stackWith: "",
-  exitPhrase: "Exit.",
-  intensity: "Medium",
-  exampleUse: "",
-  fullPrompt: "",
-  triggers: [],
-};
+const blank: Mode = normalizeMode({ id: "", mode: "" });
 
 interface Props {
   open: boolean;
@@ -32,11 +25,11 @@ interface Props {
 }
 
 export function ModeEditorDialog({ open, onOpenChange, initial, onSave }: Props) {
-  const [form, setForm] = useState<Mode>(initial ?? blank);
+  const [form, setForm] = useState<Mode>(initial ? normalizeMode(initial) : blank);
   const [triggersText, setTriggersText] = useState((initial?.triggers ?? []).join(", "));
 
   useEffect(() => {
-    setForm(initial ?? blank);
+    setForm(initial ? normalizeMode(initial) : blank);
     setTriggersText((initial?.triggers ?? []).join(", "));
   }, [initial, open]);
 
@@ -52,11 +45,11 @@ export function ModeEditorDialog({ open, onOpenChange, initial, onSave }: Props)
       .split(",")
       .map((t) => t.trim().toLowerCase())
       .filter(Boolean);
-    const toSave: Mode = {
+    const toSave: Mode = normalizeMode({
       ...form,
       id: form.id || makeId(form.mode),
       triggers,
-    };
+    });
     onSave(toSave);
     onOpenChange(false);
     toast.success(initial ? "Mode updated" : "Mode added");
@@ -79,20 +72,63 @@ export function ModeEditorDialog({ open, onOpenChange, initial, onSave }: Props)
             <Field label="Category">
               <Input value={form.category} onChange={(e) => update("category", e.target.value)} />
             </Field>
-            <Field label="Intensity">
-              <Select value={form.intensity} onValueChange={(v) => update("intensity", v as Intensity)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["Low", "Medium", "High", "Extreme"].map((i) => (
-                    <SelectItem key={i} value={i}>{i}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Field label="Subcategory">
+              <Input
+                value={form.subcategory ?? ""}
+                onChange={(e) => update("subcategory", e.target.value)}
+                placeholder="optional"
+              />
             </Field>
           </div>
+          <Field label="Intensity">
+            <Select value={form.intensity} onValueChange={(v) => update("intensity", v as Intensity)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {["Low", "Medium", "High", "Extreme"].map((i) => (
+                  <SelectItem key={i} value={i}>{i}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
           <Field label="Purpose">
             <Textarea rows={2} value={form.purpose} onChange={(e) => update("purpose", e.target.value)} />
           </Field>
+
+          <Accordion type="multiple" className="border border-border rounded-md px-3">
+            <Section label="Core Objective">
+              <Textarea
+                rows={2}
+                value={form.coreObjective ?? ""}
+                onChange={(e) => update("coreObjective", e.target.value)}
+                placeholder="One sentence: what this mode is trying to accomplish."
+              />
+            </Section>
+            <Section label="Core Principles">
+              <Textarea
+                rows={4}
+                value={form.corePrinciples ?? ""}
+                onChange={(e) => update("corePrinciples", e.target.value)}
+                placeholder="One principle per line."
+              />
+            </Section>
+            <Section label="Failure Modes">
+              <Textarea
+                rows={4}
+                value={form.failureModes ?? ""}
+                onChange={(e) => update("failureModes", e.target.value)}
+                placeholder="Known ways this mode fails or is misused. One per line."
+              />
+            </Section>
+            <Section label="Integrity Checks" last>
+              <Textarea
+                rows={4}
+                value={form.integrityChecks ?? ""}
+                onChange={(e) => update("integrityChecks", e.target.value)}
+                placeholder="Self-checks the mode runs before delivering output. One per line."
+              />
+            </Section>
+          </Accordion>
+
           <Field label="Best For">
             <Textarea rows={2} value={form.bestFor} onChange={(e) => update("bestFor", e.target.value)} />
           </Field>
@@ -101,6 +137,14 @@ export function ModeEditorDialog({ open, onOpenChange, initial, onSave }: Props)
           </Field>
           <Field label="Stack With">
             <Input value={form.stackWith} onChange={(e) => update("stackWith", e.target.value)} placeholder="Owl Mode, Clear Mode" />
+          </Field>
+          <Field label="Attributes (future modifiers)">
+            <Textarea
+              rows={2}
+              value={form.attributes ?? ""}
+              onChange={(e) => update("attributes", e.target.value)}
+              placeholder="Reserved for future modifier system. e.g. tone:formal, risk:high"
+            />
           </Field>
           <Field label="Exit Phrase">
             <Input value={form.exitPhrase} onChange={(e) => update("exitPhrase", e.target.value)} />
@@ -131,5 +175,24 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <Label className="text-[10px] mono tracking-widest text-muted-foreground">{label.toUpperCase()}</Label>
       {children}
     </div>
+  );
+}
+
+function Section({
+  label,
+  children,
+  last,
+}: {
+  label: string;
+  children: React.ReactNode;
+  last?: boolean;
+}) {
+  return (
+    <AccordionItem value={label} className={last ? "border-b-0" : ""}>
+      <AccordionTrigger className="text-[10px] mono tracking-widest text-muted-foreground hover:no-underline py-2">
+        {label.toUpperCase()}
+      </AccordionTrigger>
+      <AccordionContent className="pb-3">{children}</AccordionContent>
+    </AccordionItem>
   );
 }

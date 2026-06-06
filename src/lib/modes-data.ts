@@ -4,16 +4,52 @@ export interface Mode {
   id: string;
   mode: string;
   category: string;
+  /** Optional finer-grained grouping under category. */
+  subcategory?: string;
   purpose: string;
+  /** One-sentence statement of what the mode is trying to accomplish. */
+  coreObjective?: string;
+  /** Guiding principles the mode operates by (one per line). */
+  corePrinciples?: string;
+  /** Known ways this mode fails or is misused (one per line). */
+  failureModes?: string;
+  /** Self-checks the mode should run before delivering output (one per line). */
+  integrityChecks?: string;
   bestFor: string;
   avoidWhen: string;
   stackWith: string;
+  /** Future modifier system. Free-form for now; not yet used by the router. */
+  attributes?: string;
   exitPhrase: string;
   intensity: Intensity;
   exampleUse: string;
   fullPrompt: string;
   /** keywords used by the recommender */
   triggers: string[];
+}
+
+/** Fill in any missing v2 fields so older stored/imported modes keep working. */
+export function normalizeMode(m: Partial<Mode> & { id: string; mode: string }): Mode {
+  return {
+    id: m.id,
+    mode: m.mode,
+    category: m.category ?? "General",
+    subcategory: m.subcategory ?? "",
+    purpose: m.purpose ?? "",
+    coreObjective: m.coreObjective ?? "",
+    corePrinciples: m.corePrinciples ?? "",
+    failureModes: m.failureModes ?? "",
+    integrityChecks: m.integrityChecks ?? "",
+    bestFor: m.bestFor ?? "",
+    avoidWhen: m.avoidWhen ?? "",
+    stackWith: m.stackWith ?? "",
+    attributes: m.attributes ?? "",
+    exitPhrase: m.exitPhrase ?? `Exit ${m.mode}.`,
+    intensity: (m.intensity as Intensity) ?? "Medium",
+    exampleUse: m.exampleUse ?? "",
+    fullPrompt: m.fullPrompt ?? "",
+    triggers: Array.isArray(m.triggers) ? m.triggers : [],
+  };
 }
 
 export const SEED_MODES: Mode[] = [

@@ -172,6 +172,21 @@ function HomePage() {
             </div>
           )}
 
+          <div className="hud-panel hud-corner p-4 space-y-2 border-primary/40">
+            <SectionLabel>CATEGORY</SectionLabel>
+            <div className="mono text-sm text-primary">{rec.category}</div>
+            {rec.categoryEvidence.length > 0 && (
+              <ul className="mt-1 space-y-0.5">
+                {rec.categoryEvidence.map((e) => (
+                  <li key={e} className="text-[11px] text-foreground/85 flex items-start gap-1.5">
+                    <span className="text-primary mono mt-0.5">·</span>
+                    <span>{e}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
           <div className="hud-panel hud-corner p-4 grid grid-cols-2 gap-3 border-primary/30">
             <Stat label="CURRENT STAGE" value={rec.stage} />
             <Stat label="COMPLEXITY" value={rec.complexity} />

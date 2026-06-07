@@ -974,36 +974,61 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   const types = detectSituationTypes(text);
   const scored = modes.map((m) => scoreMode(m, text)).sort((a, b) => b.score - a.score);
 
-  // Step 1+2: determine primary Situation Type(s).
+  // STEP 1: determine Category before selecting any mode.
+  const { spec: catSpec, evidence: categoryEvidence } = detectCategory(text);
+  const categoryName = catSpec?.name ?? "Uncategorized";
+  const avoidIds = catSpec ? resolveCategoryAvoid(catSpec, text) : new Set<string>();
+
+  // Determine Situation Type (still used for reason text + default deliverable fallback).
   const primaryType = types[0];
 
-  // Step 3: select modes primarily by Situation Type.
+  // STEP 3: select primary mode.
+  // Category-specific preference takes priority over generic Situation Type pick
+  // so business-oriented modes (Architect/Shadow) can't become universal defaults.
   let primaryMode: Mode | null = null;
   let preferredSupport: string[] = [];
   let typeReason = "";
   const detectedTypeNames: string[] = [];
 
+  if (catSpec) {
+    for (const id of catSpec.preferredPrimary) {
+      if (avoidIds.has(id)) continue;
+      const m = byId(id);
+      if (m) { primaryMode = m; break; }
+    }
+    preferredSupport = catSpec.preferredSupport.filter((id) => !avoidIds.has(id));
+    typeReason = `Category "${catSpec.name}" — supporting modes are restricted to fit this category and avoid business-oriented leakage.`;
+  }
+
   if (primaryType) {
-    const st = SITUATION_TYPES.find((s) => s.type === primaryType.type)!;
-    primaryMode = byId(st.primary) ?? null;
-    preferredSupport = st.supporting;
-    typeReason = st.reason;
     detectedTypeNames.push(primaryType.type);
-    // include any close second type
     if (types[1] && types[1].score >= primaryType.score * 0.75) {
       detectedTypeNames.push(types[1].type);
     }
+    if (!primaryMode) {
+      const st = SITUATION_TYPES.find((s) => s.type === primaryType.type)!;
+      const candidate = byId(st.primary);
+      if (candidate && !avoidIds.has(candidate.id)) {
+        primaryMode = candidate;
+        preferredSupport = preferredSupport.length
+          ? preferredSupport
+          : st.supporting.filter((id) => !avoidIds.has(id));
+        typeReason = st.reason;
+      }
+    }
   }
 
-  // Step 4: keywords as supporting evidence only — fall back to top-scoring
-  // mode if no situation type matched at all.
+  // Fallback to top-scoring keyword match, respecting category avoid.
   if (!primaryMode) {
+    const allowed = scored.filter((s) => !avoidIds.has(s.mode.id));
     primaryMode =
-      scored[0].score > 0
-        ? scored[0].mode
+      (allowed[0]?.score ?? 0) > 0
+        ? allowed[0].mode
         : byId("owl") ?? modes[0];
-    typeReason =
-      "No specific situation type signals detected. Falling back to the strongest keyword match as a wide-angle starting point.";
+    if (!typeReason) {
+      typeReason =
+        "No specific Situation Type signals — falling back to strongest keyword match within category constraints.";
+    }
   }
 
   const { supporting, team } = buildTeamFromPreferred(
@@ -1011,6 +1036,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     modes,
     preferredSupport,
     scored,
+    avoidIds,
   );
 
   const avoid = pickAvoid(primaryMode, modes, supporting, text);
@@ -1018,7 +1044,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   const triggerScore = scored.find((s) => s.mode.id === primaryMode.id)?.score ?? 0;
   const rolesCovered = new Set(team.map((t) => t.role)).size - 1;
   const confidence = computeConfidence(
-    primaryType?.hits.length ?? 0,
+    (primaryType?.hits.length ?? 0) + (catSpec ? categoryEvidence.length : 0),
     triggerScore,
     rolesCovered,
     supporting.length > 0,
@@ -1027,25 +1053,35 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   const supportEvidence =
     triggerScore > 0
       ? `Keyword evidence (${scored.find((s) => s.mode.id === primaryMode!.id)?.hits.slice(0, 3).join(", ")}) supports this pick.`
-      : `No strong keyword signals for the primary mode — selection is driven by Situation Type.`;
+      : `No strong keyword signals for the primary mode — selection is driven by Category and Situation Type.`;
 
   const explanation =
+    `Category: ${categoryName}. ` +
     (primaryType
-      ? `Detected Situation Type: ${detectedTypeNames.join(" + ")}. `
+      ? `Situation Type: ${detectedTypeNames.join(" + ")}. `
       : `No clear Situation Type signals. `) +
     `${primaryMode.mode} is primary because ${typeReason} ` +
     supportEvidence +
     (supporting.length
-      ? ` Supporting with ${supporting.map((s) => s.mode).join(" and ")} so the team covers distinct cognitive roles.`
+      ? ` Supporting with ${supporting.map((s) => s.mode).join(" and ")} so the team covers distinct cognitive roles within the category.`
       : ``) +
     (avoid ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
 
   const { stage, evidence: stageEvidence } = detectStage(text);
-  const { deliverable, evidence: deliverableEvidence } = detectDeliverable(
-    text,
-    primaryType?.type ?? null,
-    stage,
-  );
+
+  // STEP 2: Category-specific deliverable takes priority over generic deliverables.
+  let deliverable: string;
+  let deliverableEvidence: string[];
+  if (catSpec) {
+    const cd = categoryDeliverable(catSpec, text);
+    deliverable = cd.label;
+    deliverableEvidence = cd.evidence;
+  } else {
+    const dd = detectDeliverable(text, primaryType?.type ?? null, stage);
+    deliverable = dd.deliverable;
+    deliverableEvidence = dd.evidence;
+  }
+
   const missingPrerequisites = detectPrerequisites(text, deliverable);
   const { isHuman: bottleneckIsHuman, reason: bottleneckReason } = detectBottleneck(text, stage);
   const { fit: aiRecommended, reason: aiReason } = assessAIFit(
@@ -1101,6 +1137,8 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     bottleneck: bottleneckIsHuman ? bottleneckReason : "",
     stageEvidence,
     deliverableEvidence,
+    category: categoryName,
+    categoryEvidence,
   };
 
 }

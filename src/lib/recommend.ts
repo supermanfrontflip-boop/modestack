@@ -52,6 +52,8 @@ export interface Recommendation {
   bottleneck: string;
   stageEvidence: string[];
   deliverableEvidence: string[];
+  category: string;
+  categoryEvidence: string[];
 }
 
 

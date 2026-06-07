@@ -249,6 +249,256 @@ const SITUATION_TYPES: SituationType[] = [
   },
 ];
 
+// ---- Category registry (Step 1: determine category first) ----
+// Categories define ALLOWED + AVOIDED supporting modes so business-oriented
+// modes (Architect/Shadow) can't leak into Performance, Creative Writing,
+// Learning, etc.
+
+interface CategorySpec {
+  name: string;
+  signals: string[];
+  preferredPrimary: string[]; // ordered candidates
+  preferredSupport: string[]; // ordered candidates
+  avoid: string[]; // modes that must NOT be selected for this category
+  deliverableRules: Array<{ rx: RegExp; label: string }>;
+  defaultDeliverable: string;
+  softAvoidUnless?: { ids: string[]; rx: RegExp }; // e.g. avoid Shadow in Learning unless "critique"
+}
+
+const CATEGORIES: CategorySpec[] = [
+  {
+    name: "Analysis & Investigation",
+    signals: [
+      "investigate", "investigation", "what really happened", "look into", "dig into",
+      "uncover", "fraud", "leak", "forensic", "contradiction", "contradict",
+      "timeline of events", "cover up", "cover-up", "whodunit", "suspicious",
+      "what's missing", "missing evidence", "inconsistency", "inconsistencies",
+    ],
+    preferredPrimary: ["shadow", "owl"],
+    preferredSupport: ["owl", "shadow", "glove"],
+    avoid: ["architect", "captain", "whaler", "wild-bird-seed", "diplomat", "raven", "gomer-pyle"],
+    deliverableRules: [
+      { rx: /timeline|chronology|sequence of events/, label: "Timeline Analysis" },
+      { rx: /contradict|inconsist|conflicting/, label: "Contradiction Map" },
+      { rx: /gap|missing evidence|what'?s missing/, label: "Evidence Gap List" },
+    ],
+    defaultDeliverable: "Most Likely Explanation",
+  },
+  {
+    name: "Creativity & Storytelling",
+    signals: [
+      "write a story", "novel", "fiction", "screenplay", "short story", "character arc",
+      "character", "scene", "dialogue", "chapter", "plot", "worldbuilding", "world building",
+      "lore", "setting", "magic system", "factions", "poem", "poetry", "fictional world",
+    ],
+    preferredPrimary: ["alien", "raven"],
+    preferredSupport: ["raven", "alien", "owl", "curator"],
+    avoid: ["architect", "shadow", "captain", "whaler", "glove", "wild-bird-seed", "diplomat", "hawk"],
+    deliverableRules: [
+      { rx: /character arc|character development/, label: "Character Arc" },
+      { rx: /scene outline/, label: "Scene Outline" },
+      { rx: /chapter/, label: "Chapter Draft" },
+      { rx: /world ?building|lore|magic system|setting bible/, label: "Worldbuilding Document" },
+    ],
+    defaultDeliverable: "Story Draft",
+  },
+  {
+    name: "Performance & Entertainment",
+    signals: [
+      "rap battle", "rap", "lyrics", "verse", "bars", "freestyle", "roast", "diss",
+      "promo", "wrestling", "wrestler", "hype man", "stand up", "stand-up",
+      "comedy set", "punchline", "open mic", "performance script",
+    ],
+    preferredPrimary: ["alien", "raven"],
+    preferredSupport: ["raven", "alien", "gomer-pyle", "curator"],
+    avoid: ["architect", "shadow", "glove", "whaler", "wild-bird-seed", "diplomat", "hawk", "captain"],
+    deliverableRules: [
+      { rx: /rap battle/, label: "Rap Battle" },
+      { rx: /lyrics|verse|bars\b|song/, label: "Lyrics" },
+      { rx: /roast/, label: "Roast" },
+      { rx: /promo|hype/, label: "Promo" },
+      { rx: /performance script|set list|comedy set/, label: "Performance Script" },
+    ],
+    defaultDeliverable: "Performance Script",
+  },
+  {
+    name: "Learning & Teaching",
+    signals: [
+      "learn", "understand", "teach me", "teach", "how do i", "from scratch", "beginner",
+      "new to", "tutorial", "lesson", "curriculum", "study", "onboard", "walk me through",
+      "walk through", "explain to me", "explain it", "concept",
+    ],
+    preferredPrimary: ["snail", "clear"],
+    preferredSupport: ["snail", "owl", "clear"],
+    avoid: ["shadow", "glove", "whaler", "wild-bird-seed", "captain", "architect", "raven", "gomer-pyle"],
+    softAvoidUnless: { ids: ["shadow"], rx: /\b(critique|review|red.?team|audit|stress test)\b/ },
+    deliverableRules: [
+      { rx: /lesson plan/, label: "Lesson Plan" },
+      { rx: /learning path|curriculum/, label: "Learning Path" },
+      { rx: /walk ?through|concept|explain/, label: "Concept Walkthrough" },
+    ],
+    defaultDeliverable: "Concept Walkthrough",
+  },
+  {
+    name: "Communication & Negotiation",
+    signals: [
+      "negotiate", "negotiation", "counter offer", "counteroffer", "counter proposal",
+      "counter-proposal", "terms", "leverage", "bargain", "conflict", "dispute",
+      "disagreement", "argument", "de-escalate", "mediator", "apology", "tough conversation",
+    ],
+    preferredPrimary: ["diplomat", "glove"],
+    preferredSupport: ["glove", "diplomat", "captain", "owl"],
+    avoid: ["shadow", "architect", "alien", "raven", "whaler", "wild-bird-seed", "gomer-pyle"],
+    deliverableRules: [
+      { rx: /counter ?proposal|counter offer/, label: "Counter-proposal Draft" },
+      { rx: /apology|measured response/, label: "Measured Response" },
+    ],
+    defaultDeliverable: "Negotiation Script",
+  },
+  {
+    name: "Legal",
+    signals: [
+      "legal", "lawsuit", "court", "magistrate", "judge", "statute", "case law",
+      "motion", "filing", "attorney", "subpoena", "cease and desist", "liability",
+      "contract review", "legal response",
+    ],
+    preferredPrimary: ["glove", "owl"],
+    preferredSupport: ["glove", "owl", "architect", "shadow"],
+    avoid: ["whaler", "wild-bird-seed", "alien", "raven", "gomer-pyle", "captain", "diplomat"],
+    deliverableRules: [
+      { rx: /motion|filing/, label: "Legal Filing Draft" },
+      { rx: /response|reply|answer to/, label: "Legal Response Draft" },
+      { rx: /memo|analysis/, label: "Legal Analysis Memo" },
+    ],
+    defaultDeliverable: "Legal Analysis Memo",
+  },
+  {
+    name: "Systems & Engineering",
+    signals: [
+      "build", "code", "implement", "refactor", "library", "framework", "api",
+      "database", "deploy", "engineer", "debug", "bug", "crash", "stack trace",
+      "architecture", "system design", "design doc",
+    ],
+    preferredPrimary: ["architect", "hawk"],
+    preferredSupport: ["architect", "hawk", "shadow", "owl"],
+    avoid: ["whaler", "wild-bird-seed", "diplomat", "raven", "gomer-pyle", "alien"],
+    deliverableRules: [
+      { rx: /bug|crash|error|stack trace|debug|broken|not working/, label: "Root-cause + Fix" },
+      { rx: /design doc|architecture/, label: "Design Doc" },
+      { rx: /refactor/, label: "Refactor Plan" },
+    ],
+    defaultDeliverable: "Design Doc + First Implementation",
+  },
+  {
+    name: "Operations & Execution",
+    signals: [
+      "operations", "process", "workflow", "sop", "playbook", "logistics",
+      "scheduling", "schedule", "dispatch", "dispatching", "quality control",
+      "throughput", "automate", "status tracking", "routing jobs",
+    ],
+    preferredPrimary: ["architect", "hawk"],
+    preferredSupport: ["architect", "hawk", "captain", "shadow"],
+    avoid: ["raven", "alien", "gomer-pyle", "whaler", "wild-bird-seed", "diplomat"],
+    deliverableRules: [
+      { rx: /dispatch/, label: "Dispatch System" },
+      { rx: /quality control/, label: "Quality Control Plan" },
+      { rx: /sop|operating procedure/, label: "SOP" },
+      { rx: /workflow/, label: "Workflow" },
+    ],
+    defaultDeliverable: "Workflow",
+  },
+  {
+    name: "Strategy & Positioning",
+    signals: [
+      "positioning", "strategy", "brand", "go to market", "go-to-market",
+      "market fit", "competitive", "differentiation", "mission statement",
+      "north star", "roadmap", "launch", "startup", "mvp", "client", "clients",
+      "customer", "customers", "lead generation", "acquire", "outreach",
+      "marketing", "campaign", "pitch", "sales", "sell", "selling",
+      "service catalog", "pricing", "scale up", "scaling",
+    ],
+    preferredPrimary: ["captain", "architect"],
+    preferredSupport: ["architect", "captain", "alien", "apex", "diplomat", "wild-bird-seed", "whaler", "shadow", "hawk"],
+    avoid: ["raven", "gomer-pyle"],
+    deliverableRules: [
+      { rx: /client acquisition|acquisition plan/, label: "Client Acquisition Plan" },
+      { rx: /service catalog/, label: "Service Catalog" },
+      { rx: /pricing( sheet| page| table)?/, label: "Pricing Sheet" },
+      { rx: /landing page/, label: "Landing Page Copy" },
+      { rx: /pitch deck|investor deck/, label: "Pitch Deck Outline" },
+      { rx: /marketing campaign|ad campaign|campaign brief/, label: "Marketing Campaign Plan" },
+      { rx: /positioning/, label: "Positioning Statement" },
+    ],
+    defaultDeliverable: "Positioning Statement",
+  },
+  {
+    name: "Leadership & Action",
+    signals: [
+      "team", "leadership", "lead my", "manager", "direct report", "1:1",
+      "company culture", "rally", "decision memo", "decide between", "commit to",
+    ],
+    preferredPrimary: ["captain", "hawk"],
+    preferredSupport: ["captain", "hawk", "architect", "owl"],
+    avoid: ["raven", "gomer-pyle", "whaler", "wild-bird-seed", "alien"],
+    deliverableRules: [
+      { rx: /decision/, label: "Decision Memo" },
+      { rx: /memo|direction note/, label: "Leadership Memo" },
+    ],
+    defaultDeliverable: "Leadership Memo",
+  },
+  {
+    name: "Prediction",
+    signals: [
+      "predict", "forecast", "what will happen", "likely outcome", "scenario",
+      "odds", "probability", "trend forecast",
+    ],
+    preferredPrimary: ["owl", "shadow"],
+    preferredSupport: ["owl", "shadow", "architect"],
+    avoid: ["raven", "gomer-pyle", "whaler", "wild-bird-seed", "diplomat", "captain"],
+    deliverableRules: [
+      { rx: /scenario/, label: "Scenario Map" },
+      { rx: /forecast|predict/, label: "Forecast Brief" },
+    ],
+    defaultDeliverable: "Scenario Map",
+  },
+];
+
+function detectCategory(text: string): { spec: CategorySpec | null; evidence: string[] } {
+  let best: { spec: CategorySpec; score: number; hits: string[] } | null = null;
+  for (const c of CATEGORIES) {
+    const hits = c.signals.filter((s) => text.includes(s));
+    if (!hits.length) continue;
+    const score = hits.reduce((a, h) => a + (h.length > 8 ? 3 : 2), 0);
+    if (!best || score > best.score) best = { spec: c, score, hits };
+  }
+  if (!best) return { spec: null, evidence: ["no category-specific signals detected"] };
+  return { spec: best.spec, evidence: best.hits.slice(0, 5) };
+}
+
+function resolveCategoryAvoid(spec: CategorySpec, text: string): Set<string> {
+  const avoid = new Set(spec.avoid);
+  // Soft-avoid: remove from avoid set if the triggering pattern matches.
+  if (spec.softAvoidUnless && spec.softAvoidUnless.rx.test(text)) {
+    for (const id of spec.softAvoidUnless.ids) avoid.delete(id);
+  }
+  return avoid;
+}
+
+function categoryDeliverable(
+  spec: CategorySpec,
+  text: string,
+): { label: string; evidence: string[] } {
+  for (const r of spec.deliverableRules) {
+    if (r.rx.test(text)) {
+      return { label: r.label, evidence: [`matched "${r.label}" rule for ${spec.name}`] };
+    }
+  }
+  return {
+    label: spec.defaultDeliverable,
+    evidence: [`default deliverable for ${spec.name}`],
+  };
+}
+
 // ---- Recommendation frequency tracking ----
 // Penalize modes that have been recommended often this session to avoid
 // over-recommending the same modes across unrelated situation types.

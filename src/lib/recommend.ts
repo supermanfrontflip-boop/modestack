@@ -575,7 +575,7 @@ function buildTeamFromPreferred(
     // soft frequency penalty: skip preferred if it's been used heavily and a fresher option exists
     if (freqPenalty(id) >= 3) {
       const fresh = modes.find(
-        (mm) => !used.has(mm.id) && roleOf(mm).role === r && freqPenalty(mm.id) < 2,
+        (mm) => !used.has(mm.id) && !avoidIds.has(mm.id) && roleOf(mm).role === r && freqPenalty(mm.id) < 2,
       );
       if (fresh) {
         supporting.push(fresh);
@@ -597,7 +597,7 @@ function buildTeamFromPreferred(
   for (const role of needRoles) {
     if (supporting.length >= 2) break;
     const cand = modes
-      .filter((m) => !used.has(m.id) && roleOf(m).role === role)
+      .filter((m) => !used.has(m.id) && !avoidIds.has(m.id) && roleOf(m).role === role)
       .map((m) => ({
         mode: m,
         s: (scoredById.get(m.id)?.score ?? 0) - freqPenalty(m.id),

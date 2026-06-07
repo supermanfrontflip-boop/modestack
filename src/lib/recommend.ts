@@ -557,6 +557,7 @@ function buildTeamFromPreferred(
   modes: Mode[],
   preferredIds: string[],
   scored: Scored[],
+  avoidIds: Set<string> = new Set(),
 ): { supporting: Mode[]; team: TeamMember[] } {
   const primaryRole = roleOf(primary).role;
   const used = new Set<string>([primary.id]);
@@ -566,7 +567,7 @@ function buildTeamFromPreferred(
   // 1. Preferred candidates that bring a distinct role.
   for (const id of preferredIds) {
     if (supporting.length >= 2) break;
-    if (used.has(id)) continue;
+    if (used.has(id) || avoidIds.has(id)) continue;
     const m = modes.find((mm) => mm.id === id);
     if (!m) continue;
     const r = roleOf(m).role;

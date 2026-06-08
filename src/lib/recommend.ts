@@ -1232,15 +1232,33 @@ function pickAvoid(
   modes: Mode[],
   supporting: Mode[],
   text: string,
-): Mode | null {
+  catSpec: CategorySpec | null,
+): { avoid: Mode | null; isHighConfidence: boolean } {
   const usedIds = new Set([primary.id, ...supporting.map((s) => s.id)]);
   const wantsComedy = COMEDY_OPT_IN.some((k) => text.includes(k));
-  // Gomer Pyle is almost never appropriate unless comedy was requested.
-  if (!wantsComedy) {
+
+  // High-confidence conflict #1: Gomer Pyle in a serious/legal/professional context.
+  const seriousContext =
+    /\b(legal|court|magistrate|attorney|agency|investigation|witness|client|customer|professional)\b/.test(text);
+  if (!wantsComedy && seriousContext) {
     const gp = modes.find((m) => m.id === "gomer-pyle" && !usedIds.has(m.id));
-    if (gp) return gp;
+    if (gp) return { avoid: gp, isHighConfidence: true };
   }
-  // Fall back to an opposite-intensity mode for contrast.
+
+  // High-confidence conflict #2: category explicitly avoids a mode that the user's
+  // keywords would otherwise pull in (e.g. Architect in Creative Writing when the
+  // user mentions "structure" but the category bans it without storytelling intent).
+  if (catSpec) {
+    for (const id of catSpec.avoid) {
+      const m = modes.find((mm) => mm.id === id);
+      if (!m || usedIds.has(id)) continue;
+      const triggered = m.triggers.some((t) => text.includes(t));
+      if (triggered) return { avoid: m, isHighConfidence: true };
+    }
+  }
+
+  // Low-confidence fallback: opposite-intensity contrast pick. Not surfaced by UI
+  // unless the caller treats it as informational.
   const opposites: Record<string, string> = {
     Extreme: "Low",
     High: "Low",
@@ -1248,7 +1266,8 @@ function pickAvoid(
     Medium: "Extreme",
   };
   const target = opposites[primary.intensity];
-  return modes.find((m) => !usedIds.has(m.id) && m.intensity === target) ?? null;
+  const fallback = modes.find((m) => !usedIds.has(m.id) && m.intensity === target) ?? null;
+  return { avoid: fallback, isHighConfidence: false };
 }
 
 // ---- Prompt assembly ----

@@ -1062,7 +1062,13 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     avoidIds,
   );
 
-  const avoid = pickAvoid(primaryMode, modes, supporting, text);
+  const { avoid, isHighConfidence: avoidIsHighConfidence } = pickAvoid(
+    primaryMode,
+    modes,
+    supporting,
+    text,
+    catSpec,
+  );
 
   const triggerScore = scored.find((s) => s.mode.id === primaryMode.id)?.score ?? 0;
   const rolesCovered = new Set(team.map((t) => t.role)).size - 1;
@@ -1071,6 +1077,44 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     triggerScore,
     rolesCovered,
     supporting.length > 0,
+  );
+
+  // Distinct confidence values for the UI.
+  const primaryConfidence = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        35 +
+          (catSpec ? 25 : 0) +
+          Math.min((primaryType?.hits.length ?? 0) * 10, 25) +
+          Math.min(triggerScore * 2, 20) -
+          freqPenalty(primaryMode.id) * 3,
+      ),
+    ),
+  );
+  const stackConfidence = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        primaryConfidence * 0.6 +
+          Math.min(rolesCovered, 2) * 12 +
+          (supporting.length ? 10 : -10),
+      ),
+    ),
+  );
+  const { stage, evidence: stageEvidence } = detectStage(text);
+  const stageConfidence = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        (stage === "Idea" && stageEvidence[0]?.startsWith("no stage-specific")
+          ? 25
+          : 50) + Math.min(stageEvidence.length * 18, 50),
+      ),
+    ),
   );
 
   const supportEvidence =
@@ -1088,9 +1132,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     (supporting.length
       ? ` Supporting with ${supporting.map((s) => s.mode).join(" and ")} so the team covers distinct cognitive roles within the category.`
       : ``) +
-    (avoid ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
-
-  const { stage, evidence: stageEvidence } = detectStage(text);
+    (avoid && avoidIsHighConfidence ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
 
   // STEP 2: Category-specific deliverable takes priority over generic deliverables.
   let deliverable: string;
@@ -1136,6 +1178,16 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     deliverable,
   );
 
+  const reasoning: string[] = [
+    `Detected category "${categoryName}"${catSpec ? ` from signals: ${categoryEvidence.join(", ")}` : ""}.`,
+    primaryType
+      ? `Top situation type "${primaryType.type}" with ${primaryType.hits.length} signal hit(s).`
+      : `No clear situation type — relied on category preference and keyword scoring.`,
+    `Selected ${primaryMode.mode} as primary; supporting modes restricted to category-allowed set.`,
+    `Deliverable "${deliverable}" — ${deliverableEvidence.join("; ")}.`,
+    `Stage "${stage}" — ${stageEvidence.join("; ")}.`,
+  ];
+
   bumpCounts([primaryMode.id, ...supporting.map((s) => s.id)]);
 
   return {
@@ -1144,10 +1196,14 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     primaryContribution: roleOf(primaryMode).contribution,
     supporting,
     team,
-    avoid,
+    avoid: avoidIsHighConfidence ? avoid : null,
+    avoidIsHighConfidence,
     explanation,
     combinedPrompt,
     confidence,
+    primaryConfidence,
+    stackConfidence,
+    stageConfidence,
     situationTypes: types.slice(0, 3),
     situationReason: typeReason,
     stage,
@@ -1162,6 +1218,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     deliverableEvidence,
     category: categoryName,
     categoryEvidence,
+    reasoning,
   };
 
 }

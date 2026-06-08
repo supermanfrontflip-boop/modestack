@@ -360,8 +360,10 @@ const CATEGORIES: CategorySpec[] = [
     name: "Communication & Negotiation",
     signals: [
       "negotiate", "negotiation", "counter offer", "counteroffer", "counter proposal",
-      "counter-proposal", "terms", "leverage", "bargain", "conflict", "dispute",
-      "disagreement", "argument", "de-escalate", "mediator", "apology", "tough conversation",
+      "counter-proposal", "terms", "leverage", "bargain", "dispute with",
+      "disagreement with", "argument with", "de-escalate", "mediator", "apology",
+      "tough conversation", "resolve a conflict", "resolve our conflict",
+      "team conflict", "family conflict", "coworker conflict",
     ],
     preferredPrimary: ["diplomat", "glove"],
     preferredSupport: ["glove", "diplomat", "captain", "owl"],

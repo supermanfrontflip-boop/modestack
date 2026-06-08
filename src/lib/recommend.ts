@@ -81,6 +81,7 @@ const ROLE_MAP: Record<string, RoleSpec> = {
   whaler:     { role: "execution",   contribution: "patient pursuit of a single high-value client or deal" },
   "wild-bird-seed": { role: "execution", contribution: "attraction-based value scattering for inbound leads" },
   "gomer-pyle": { role: "perspective", contribution: "folksy comedic voice for satire and parody" },
+  "platform-tutor": { role: "execution", contribution: "beginner-friendly, one-step-at-a-time device-specific guidance" },
 };
 
 function roleOf(mode: Mode): RoleSpec {

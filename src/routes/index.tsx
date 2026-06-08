@@ -4,6 +4,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useFavorites, useModes } from "@/lib/vault-store";
 import { recommend, ROLE_LABEL, type Recommendation } from "@/lib/recommend";
 import { CopyButton } from "@/components/CopyButton";
@@ -15,8 +16,8 @@ import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Prompt Command Center" },
-      { name: "description", content: "Pick the best AI prompt mode for your situation." },
+      { title: "ModeStack — Workflow Advisor" },
+      { name: "description", content: "Identify the next step and the minimum effective mode stack." },
     ],
   }),
   component: HomePage,
@@ -34,6 +35,7 @@ function HomePage() {
   const { addFavorite } = useFavorites();
   const [situation, setSituation] = useState("");
   const [rec, setRec] = useState<Recommendation | null>(null);
+  const [view, setView] = useState<"quick" | "detailed">("quick");
   const [saveOpen, setSaveOpen] = useState(false);
   const [favName, setFavName] = useState("");
   const baseRef = useRef("");
@@ -47,14 +49,8 @@ function HomePage() {
   });
 
   const toggleMic = () => {
-    if (listening) {
-      stop();
-      return;
-    }
-    if (!supported) {
-      toast.error("Voice input not supported in this browser");
-      return;
-    }
+    if (listening) { stop(); return; }
+    if (!supported) { toast.error("Voice input not supported in this browser"); return; }
     baseRef.current = situation;
     start();
   };
@@ -62,15 +58,9 @@ function HomePage() {
   const canSubmit = situation.trim().length > 2;
 
   const onRecommend = () => {
-    if (!canSubmit) {
-      toast.error("Describe your situation first");
-      return;
-    }
+    if (!canSubmit) { toast.error("Describe your situation first"); return; }
     const result = recommend(situation, modes);
-    if (!result) {
-      toast.error("No modes available");
-      return;
-    }
+    if (!result) { toast.error("No modes available"); return; }
     setRec(result);
   };
 
@@ -150,157 +140,20 @@ function HomePage() {
 
       {rec && (
         <section className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-          {rec.situationTypes.length > 0 && (
-            <div className="hud-panel hud-corner p-4 space-y-2 border-primary/40">
-              <SectionLabel>SITUATION TYPE</SectionLabel>
-              <div className="flex flex-wrap gap-1.5">
-                {rec.situationTypes.map((st, i) => (
-                  <span
-                    key={st.type}
-                    className={`mono text-xs tracking-wider px-2 py-1 rounded-sm border ${
-                      i === 0
-                        ? "border-primary/60 bg-primary/10 text-primary"
-                        : "border-border bg-muted/40 text-muted-foreground"
-                    }`}
-                  >
-                    {st.type}
-                    {i === 0 && <span className="ml-1 text-[9px] opacity-70">PRIMARY</span>}
-                  </span>
-                ))}
-              </div>
-              <p className="text-xs text-foreground/80 leading-relaxed pt-1">{rec.situationReason}</p>
-            </div>
-          )}
+          <Tabs value={view} onValueChange={(v) => setView(v as "quick" | "detailed")}>
+            <TabsList className="grid grid-cols-2 w-full">
+              <TabsTrigger value="quick" className="mono tracking-widest text-xs">QUICK VIEW</TabsTrigger>
+              <TabsTrigger value="detailed" className="mono tracking-widest text-xs">DETAILED VIEW</TabsTrigger>
+            </TabsList>
 
-          <div className="hud-panel hud-corner p-4 space-y-2 border-primary/40">
-            <SectionLabel>CATEGORY</SectionLabel>
-            <div className="mono text-sm text-primary">{rec.category}</div>
-            {rec.categoryEvidence.length > 0 && (
-              <ul className="mt-1 space-y-0.5">
-                {rec.categoryEvidence.map((e) => (
-                  <li key={e} className="text-[11px] text-foreground/85 flex items-start gap-1.5">
-                    <span className="text-primary mono mt-0.5">·</span>
-                    <span>{e}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+            <TabsContent value="quick" className="space-y-4 mt-3">
+              <QuickView rec={rec} onSave={() => setSaveOpen(true)} />
+            </TabsContent>
 
-          <div className="hud-panel hud-corner p-4 grid grid-cols-2 gap-3 border-primary/30">
-            <Stat label="CURRENT STAGE" value={rec.stage} />
-            <Stat label="COMPLEXITY" value={rec.complexity} />
-            <Stat
-              label="AI RECOMMENDED?"
-              value={rec.aiRecommended}
-              tone={rec.aiRecommended === "Yes" ? "good" : rec.aiRecommended === "Limited" ? "warn" : "bad"}
-            />
-            <Stat label="DELIVERABLE" value={rec.deliverable} wide />
-            {rec.stageEvidence.length > 0 && (
-              <EvidenceBlock label="STAGE EVIDENCE" items={rec.stageEvidence} />
-            )}
-            {rec.deliverableEvidence.length > 0 && (
-              <EvidenceBlock label="DELIVERABLE EVIDENCE" items={rec.deliverableEvidence} />
-            )}
-            <div className="col-span-2 text-[11px] text-muted-foreground leading-relaxed">
-              {rec.aiReason}
-            </div>
-          </div>
-
-
-          <div className="hud-panel hud-corner p-4 space-y-2 border-primary/40">
-            <SectionLabel>RECOMMENDED NEXT ACTION</SectionLabel>
-            <p className="text-sm text-foreground leading-relaxed">{rec.recommendedAction}</p>
-            {rec.bottleneck && (
-              <p className="text-[11px] text-yellow-400/90 leading-relaxed">
-                Bottleneck: {rec.bottleneck}
-              </p>
-            )}
-          </div>
-
-          {rec.missingPrerequisites.length > 0 && (
-            <div className="hud-panel p-4 space-y-2 border-yellow-400/40">
-              <SectionLabel>MISSING PREREQUISITES</SectionLabel>
-              <ul className="space-y-1">
-                {rec.missingPrerequisites.map((p) => (
-                  <li key={p} className="text-sm text-foreground/90 flex items-start gap-2">
-                    <span className="text-yellow-400 mono text-xs mt-0.5">▸</span>
-                    <span>{p}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">
-                Build these first — the target deliverable depends on them.
-              </p>
-            </div>
-          )}
-
-          <ConfidenceMeter value={rec.confidence} />
-
-
-          <ModeCard label="PRIMARY MODE" mode={rec.primary} accent="primary" />
-
-          {rec.supporting.length > 0 && (
-            <div className="space-y-2">
-              <SectionLabel>SUPPORTING MODES</SectionLabel>
-              <div className="space-y-2">
-                {rec.supporting.map((m) => (
-                  <ModeCard key={m.id} mode={m} compact />
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="hud-panel p-4 space-y-3">
-            <SectionLabel>WHY THESE MODES WORK TOGETHER</SectionLabel>
-            <ul className="space-y-2">
-              {rec.team.map((member, i) => (
-                <li key={member.mode.id} className="text-sm text-foreground/90 leading-relaxed">
-                  <span className="mono text-primary">{member.mode.mode}</span>{" "}
-                  <span className="text-[10px] mono tracking-widest text-muted-foreground">
-                    [{i === 0 ? "PRIMARY" : "SUPPORT"} · {ROLE_LABEL[member.role].toUpperCase()}]
-                  </span>
-                  <div className="text-xs text-foreground/80 mt-0.5">{member.contribution}.</div>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {rec.avoid && (
-            <div className="hud-panel p-3 border-destructive/40">
-              <div className="flex items-start gap-2">
-                <Ban className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-[10px] mono tracking-widest text-destructive">AVOID</div>
-                  <div className="text-sm mono">{rec.avoid.mode}</div>
-                  <div className="text-xs text-muted-foreground mt-1">{rec.avoid.avoidWhen}</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="hud-panel p-4 space-y-2">
-            <SectionLabel>EXPLANATION</SectionLabel>
-            <p className="text-sm leading-relaxed text-foreground/90">{rec.explanation}</p>
-          </div>
-
-          <div className="hud-panel hud-corner p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <SectionLabel>COMBINED PROMPT</SectionLabel>
-              <CopyButton value={rec.combinedPrompt} label="Copy Prompt" />
-            </div>
-            <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed font-mono bg-background/60 border border-border rounded-md p-3 text-foreground/90 max-h-80 overflow-auto">
-              {rec.combinedPrompt}
-            </pre>
-            <Button
-              variant="outline"
-              onClick={() => setSaveOpen(true)}
-              className="w-full mono tracking-wider"
-            >
-              <Star className="h-4 w-4 mr-2" />
-              SAVE AS FAVORITE STACK
-            </Button>
-          </div>
+            <TabsContent value="detailed" className="space-y-4 mt-3">
+              <DetailedView rec={rec} onSave={() => setSaveOpen(true)} />
+            </TabsContent>
+          </Tabs>
         </section>
       )}
 
@@ -330,10 +183,287 @@ function HomePage() {
   );
 }
 
+/* ---------- Quick View ---------- */
+
+function QuickView({ rec, onSave }: { rec: Recommendation; onSave: () => void }) {
+  const combinedStack = [rec.primary.mode, ...rec.supporting.map((s) => s.mode)].join(" + ");
+  return (
+    <>
+      <div className="hud-panel hud-corner p-4 space-y-2 border-primary/40">
+        <SectionLabel>RECOMMENDED NEXT ACTION</SectionLabel>
+        <p className="text-sm text-foreground leading-relaxed">{rec.recommendedAction}</p>
+      </div>
+
+      <div className="hud-panel hud-corner p-4 space-y-3 border-primary/40">
+        <SectionLabel>PRIMARY MODE</SectionLabel>
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="mono text-xl text-foreground">{rec.primary.mode}</h3>
+            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+              <CategoryTag category={rec.primary.category} />
+            </div>
+          </div>
+          <CopyButton value={rec.primary.fullPrompt} label="Copy Primary Prompt" />
+        </div>
+        <IntensityRow intensity={rec.primary.intensity} />
+        <ConfidenceRow label="Primary Mode Confidence" value={rec.primaryConfidence} />
+      </div>
+
+      <div className="hud-panel p-4 space-y-3">
+        <SectionLabel>COMBINED STACK</SectionLabel>
+        <div className="mono text-sm text-foreground">{combinedStack}</div>
+        <ConfidenceRow label="Combined Stack Confidence" value={rec.stackConfidence} />
+        <div className="flex gap-2">
+          <CopyButton value={rec.combinedPrompt} label="Copy Combined Prompt" />
+          <Button variant="outline" onClick={onSave} className="mono tracking-wider flex-1">
+            <Star className="h-4 w-4 mr-2" />
+            SAVE STACK
+          </Button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ---------- Detailed View ---------- */
+
+function DetailedView({ rec, onSave }: { rec: Recommendation; onSave: () => void }) {
+  return (
+    <>
+      <div className="hud-panel hud-corner p-4 space-y-2 border-primary/40">
+        <SectionLabel>SITUATION TYPE</SectionLabel>
+        <div className="flex flex-wrap gap-1.5">
+          {rec.situationTypes.length === 0 && (
+            <span className="text-xs text-muted-foreground">No specific situation type detected.</span>
+          )}
+          {rec.situationTypes.map((st, i) => (
+            <span
+              key={st.type}
+              className={`mono text-xs tracking-wider px-2 py-1 rounded-sm border ${
+                i === 0
+                  ? "border-primary/60 bg-primary/10 text-primary"
+                  : "border-border bg-muted/40 text-muted-foreground"
+              }`}
+            >
+              {st.type}
+              {i === 0 && <span className="ml-1 text-[9px] opacity-70">PRIMARY</span>}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="hud-panel hud-corner p-4 space-y-2 border-primary/40">
+        <SectionLabel>CATEGORY</SectionLabel>
+        <div className="mono text-sm text-primary">{rec.category}</div>
+        {rec.categoryEvidence.length > 0 && (
+          <EvidenceList items={rec.categoryEvidence} />
+        )}
+      </div>
+
+      <div className="hud-panel hud-corner p-4 grid grid-cols-2 gap-3 border-primary/30">
+        <Stat label="CURRENT STAGE" value={rec.stage} />
+        <Stat label="COMPLEXITY" value={rec.complexity} />
+        <Stat
+          label="AI RECOMMENDED?"
+          value={rec.aiRecommended}
+          tone={rec.aiRecommended === "Yes" ? "good" : rec.aiRecommended === "Limited" ? "warn" : "bad"}
+        />
+        <Stat label="TARGET DELIVERABLE" value={rec.deliverable} wide />
+        {rec.stageEvidence.length > 0 && (
+          <EvidenceBlock label="STAGE EVIDENCE" items={rec.stageEvidence} />
+        )}
+        {rec.deliverableEvidence.length > 0 && (
+          <EvidenceBlock label="DELIVERABLE EVIDENCE" items={rec.deliverableEvidence} />
+        )}
+        <div className="col-span-2 text-[11px] text-muted-foreground leading-relaxed">
+          {rec.aiReason}
+        </div>
+      </div>
+
+      <div className="hud-panel p-4 space-y-2">
+        <SectionLabel>CONFIDENCE</SectionLabel>
+        <ConfidenceRow label="Primary Mode Confidence" value={rec.primaryConfidence} />
+        <ConfidenceRow label="Combined Stack Confidence" value={rec.stackConfidence} />
+        <ConfidenceRow label="Stage Confidence" value={rec.stageConfidence} />
+      </div>
+
+      <div className="hud-panel hud-corner p-4 space-y-2 border-primary/40">
+        <SectionLabel>RECOMMENDED NEXT ACTION</SectionLabel>
+        <p className="text-sm text-foreground leading-relaxed">{rec.recommendedAction}</p>
+        {rec.bottleneck && (
+          <p className="text-[11px] text-yellow-400/90 leading-relaxed">
+            Bottleneck: {rec.bottleneck}
+          </p>
+        )}
+      </div>
+
+      {rec.missingPrerequisites.length > 0 && (
+        <div className="hud-panel p-4 space-y-2 border-yellow-400/40">
+          <SectionLabel>MISSING PREREQUISITES</SectionLabel>
+          <ul className="space-y-1">
+            {rec.missingPrerequisites.map((p) => (
+              <li key={p} className="text-sm text-foreground/90 flex items-start gap-2">
+                <span className="text-yellow-400 mono text-xs mt-0.5">▸</span>
+                <span>{p}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-muted-foreground leading-relaxed pt-1">
+            Build these first — the target deliverable depends on them.
+          </p>
+        </div>
+      )}
+
+      <ModeCard label="PRIMARY MODE" mode={rec.primary} accent="primary" />
+
+      {rec.supporting.length > 0 && (
+        <div className="space-y-2">
+          <SectionLabel>SUPPORTING MODES</SectionLabel>
+          <div className="space-y-2">
+            {rec.supporting.map((m) => (
+              <ModeCard key={m.id} mode={m} compact />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="hud-panel p-4 space-y-2">
+        <SectionLabel>REASONING</SectionLabel>
+        <ul className="space-y-1">
+          {rec.reasoning.map((r, i) => (
+            <li key={i} className="text-xs text-foreground/85 flex items-start gap-1.5">
+              <span className="text-primary mono mt-0.5">{i + 1}.</span>
+              <span className="leading-relaxed">{r}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {(rec.primary.failureModes || rec.supporting.some((s) => s.failureModes)) && (
+        <div className="hud-panel p-4 space-y-2">
+          <SectionLabel>FAILURE MODES</SectionLabel>
+          {[rec.primary, ...rec.supporting]
+            .filter((m) => m.failureModes)
+            .map((m) => (
+              <div key={m.id} className="text-xs">
+                <span className="mono text-primary">{m.mode}:</span>
+                <span className="text-foreground/85 whitespace-pre-line ml-1">{m.failureModes}</span>
+              </div>
+            ))}
+        </div>
+      )}
+
+      {(rec.primary.integrityChecks || rec.supporting.some((s) => s.integrityChecks)) && (
+        <div className="hud-panel p-4 space-y-2">
+          <SectionLabel>INTEGRITY CHECKS</SectionLabel>
+          {[rec.primary, ...rec.supporting]
+            .filter((m) => m.integrityChecks)
+            .map((m) => (
+              <div key={m.id} className="text-xs">
+                <span className="mono text-primary">{m.mode}:</span>
+                <span className="text-foreground/85 whitespace-pre-line ml-1">{m.integrityChecks}</span>
+              </div>
+            ))}
+        </div>
+      )}
+
+      <div className="hud-panel p-4 space-y-3">
+        <SectionLabel>WHY THESE MODES WORK TOGETHER</SectionLabel>
+        <ul className="space-y-2">
+          {rec.team.map((member, i) => (
+            <li key={member.mode.id} className="text-sm text-foreground/90 leading-relaxed">
+              <span className="mono text-primary">{member.mode.mode}</span>{" "}
+              <span className="text-[10px] mono tracking-widest text-muted-foreground">
+                [{i === 0 ? "PRIMARY" : "SUPPORT"} · {ROLE_LABEL[member.role].toUpperCase()}]
+              </span>
+              <div className="text-xs text-foreground/80 mt-0.5">{member.contribution}.</div>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="hud-panel p-3 border-border">
+        <div className="flex items-start gap-2">
+          <Ban className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+          <div className="min-w-0 w-full">
+            <div className="text-[10px] mono tracking-widest text-muted-foreground">AVOID MODES</div>
+            {rec.avoid && rec.avoidIsHighConfidence ? (
+              <>
+                <div className="text-sm mono text-destructive">{rec.avoid.mode}</div>
+                <div className="text-xs text-muted-foreground mt-1">{rec.avoid.avoidWhen}</div>
+              </>
+            ) : (
+              <div className="text-xs text-muted-foreground mt-0.5">
+                No significant mode conflicts detected.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="hud-panel p-4 space-y-2">
+        <SectionLabel>EXPLANATION</SectionLabel>
+        <p className="text-sm leading-relaxed text-foreground/90">{rec.explanation}</p>
+      </div>
+
+      <div className="hud-panel hud-corner p-4 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <SectionLabel>COMBINED PROMPT</SectionLabel>
+          <CopyButton value={rec.combinedPrompt} label="Copy Combined Prompt" />
+        </div>
+        <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed font-mono bg-background/60 border border-border rounded-md p-3 text-foreground/90 max-h-80 overflow-auto">
+          {rec.combinedPrompt}
+        </pre>
+        <Button
+          variant="outline"
+          onClick={onSave}
+          className="w-full mono tracking-wider"
+        >
+          <Star className="h-4 w-4 mr-2" />
+          SAVE AS FAVORITE STACK
+        </Button>
+      </div>
+    </>
+  );
+}
+
+/* ---------- Shared bits ---------- */
+
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="text-[10px] mono tracking-[0.25em] text-muted-foreground">
       // {children}
+    </div>
+  );
+}
+
+function IntensityRow({ intensity }: { intensity: "Low" | "Medium" | "High" | "Extreme" }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-foreground">Intensity:</span>
+      <IntensityPill intensity={intensity} />
+      <span className="text-[10px] text-muted-foreground leading-snug">
+        Indicator only — helps you decide whether to use no prompt, the primary prompt, the combined prompt, or supporting prompts.
+      </span>
+    </div>
+  );
+}
+
+function ConfidenceRow({ label, value }: { label: string; value: number }) {
+  const tier = value >= 80 ? "HIGH" : value >= 55 ? "MEDIUM" : "LOW";
+  const color =
+    value >= 80 ? "bg-green-500" : value >= 55 ? "bg-yellow-400" : "bg-red-500";
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-foreground">{label}</span>
+        <span className="mono text-foreground">
+          {value}% <span className="text-[10px] text-muted-foreground tracking-widest">· {tier}</span>
+        </span>
+      </div>
+      <div className="h-1.5 w-full bg-muted/40 rounded-sm overflow-hidden">
+        <div className={`h-full ${color} transition-all`} style={{ width: `${value}%` }} />
+      </div>
     </div>
   );
 }
@@ -369,35 +499,21 @@ function EvidenceBlock({ label, items }: { label: string; items: string[] }) {
   return (
     <div className="col-span-2 border-t border-border/60 pt-2">
       <div className="text-[9px] mono tracking-[0.25em] text-muted-foreground">{label}</div>
-      <ul className="mt-1 space-y-0.5">
-        {items.map((it) => (
-          <li key={it} className="text-[11px] text-foreground/85 flex items-start gap-1.5">
-            <span className="text-primary mono mt-0.5">·</span>
-            <span>{it}</span>
-          </li>
-        ))}
-      </ul>
+      <EvidenceList items={items} />
     </div>
   );
 }
 
-function ConfidenceMeter({ value }: { value: number }) {
-
-  const tier = value >= 80 ? "HIGH" : value >= 55 ? "MEDIUM" : "LOW";
-  const color =
-    value >= 80 ? "bg-primary" : value >= 55 ? "bg-yellow-400" : "bg-destructive";
+function EvidenceList({ items }: { items: string[] }) {
   return (
-    <div className="hud-panel p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <SectionLabel>RECOMMENDATION CONFIDENCE</SectionLabel>
-        <div className="text-sm mono text-foreground">
-          {value}% <span className="text-[10px] text-muted-foreground tracking-widest">· {tier}</span>
-        </div>
-      </div>
-      <div className="h-1.5 w-full bg-muted/40 rounded-sm overflow-hidden">
-        <div className={`h-full ${color} transition-all`} style={{ width: `${value}%` }} />
-      </div>
-    </div>
+    <ul className="mt-1 space-y-0.5">
+      {items.map((it) => (
+        <li key={it} className="text-[11px] text-foreground/85 flex items-start gap-1.5">
+          <span className="text-primary mono mt-0.5">·</span>
+          <span>{it}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -430,10 +546,13 @@ function ModeCard({
           </h3>
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
             <CategoryTag category={mode.category} />
-            <IntensityPill intensity={mode.intensity} />
           </div>
         </div>
         <CopyButton value={mode.fullPrompt} label="Prompt" />
+      </div>
+      <div className="flex items-center gap-2 pt-1">
+        <span className="text-xs text-foreground">Intensity:</span>
+        <IntensityPill intensity={mode.intensity} />
       </div>
       {!compact && (
         <p className="text-sm text-foreground/85 leading-relaxed">{mode.purpose}</p>

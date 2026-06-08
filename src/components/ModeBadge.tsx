@@ -2,10 +2,10 @@ import type { Intensity } from "@/lib/modes-data";
 import { cn } from "@/lib/utils";
 
 const intensityColors: Record<Intensity, string> = {
-  Low: "bg-secondary text-muted-foreground border-border",
-  Medium: "bg-primary/10 text-primary border-primary/30",
-  High: "bg-accent/15 text-accent border-accent/40",
-  Extreme: "bg-destructive/15 text-destructive border-destructive/40",
+  Low: "bg-green-500/15 text-green-400 border-green-500/40",
+  Medium: "bg-yellow-400/15 text-yellow-300 border-yellow-400/40",
+  High: "bg-red-500/15 text-red-400 border-red-500/40",
+  Extreme: "bg-red-500/25 text-red-300 border-red-500/60",
 };
 
 export function IntensityPill({ intensity }: { intensity: Intensity }) {

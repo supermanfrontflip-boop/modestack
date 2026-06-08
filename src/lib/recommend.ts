@@ -37,9 +37,18 @@ export interface Recommendation {
   supporting: Mode[];
   team: TeamMember[];
   avoid: Mode | null;
+  /** True when the avoid pick is supported by a specific, high-confidence conflict. */
+  avoidIsHighConfidence: boolean;
   explanation: string;
   combinedPrompt: string;
+  /** Legacy overall confidence (kept for compatibility). */
   confidence: number;
+  /** Confidence the chosen primary mode fits the situation. */
+  primaryConfidence: number;
+  /** Confidence the full combined stack fits the situation. */
+  stackConfidence: number;
+  /** Confidence the detected stage is correct. */
+  stageConfidence: number;
   situationTypes: SituationTypeMatch[];
   situationReason: string;
   stage: WorkStage;
@@ -54,6 +63,8 @@ export interface Recommendation {
   deliverableEvidence: string[];
   category: string;
   categoryEvidence: string[];
+  /** Reasoning trace summarizing how the recommendation was built. */
+  reasoning: string[];
 }
 
 
@@ -81,6 +92,7 @@ const ROLE_MAP: Record<string, RoleSpec> = {
   whaler:     { role: "execution",   contribution: "patient pursuit of a single high-value client or deal" },
   "wild-bird-seed": { role: "execution", contribution: "attraction-based value scattering for inbound leads" },
   "gomer-pyle": { role: "perspective", contribution: "folksy comedic voice for satire and parody" },
+  "platform-tutor": { role: "execution", contribution: "beginner-friendly, one-step-at-a-time device-specific guidance" },
 };
 
 function roleOf(mode: Mode): RoleSpec {
@@ -273,13 +285,18 @@ const CATEGORIES: CategorySpec[] = [
       "uncover", "fraud", "leak", "forensic", "contradiction", "contradict",
       "timeline of events", "cover up", "cover-up", "whodunit", "suspicious",
       "what's missing", "missing evidence", "inconsistency", "inconsistencies",
+      "facts do not match", "facts don't match", "witness statements conflict",
+      "witness statement", "witness statements", "conflicting accounts",
+      "conflicting witness", "timeline inconsistencies", "inconsistent dates",
+      "evidence supports both", "determine what happened", "reconstruct events",
+      "reconstruct the events", "piece together",
     ],
     preferredPrimary: ["shadow", "owl"],
     preferredSupport: ["owl", "shadow", "glove"],
     avoid: ["architect", "captain", "whaler", "wild-bird-seed", "diplomat", "raven", "gomer-pyle"],
     deliverableRules: [
-      { rx: /timeline|chronology|sequence of events/, label: "Timeline Analysis" },
-      { rx: /contradict|inconsist|conflicting/, label: "Contradiction Map" },
+      { rx: /timeline|chronology|sequence of events|inconsistent dates/, label: "Timeline Analysis" },
+      { rx: /contradict|inconsist|conflicting|do(es)? not match|don'?t match/, label: "Contradiction Map" },
       { rx: /gap|missing evidence|what'?s missing/, label: "Evidence Gap List" },
     ],
     defaultDeliverable: "Most Likely Explanation",
@@ -327,14 +344,18 @@ const CATEGORIES: CategorySpec[] = [
       "learn", "understand", "teach me", "teach", "how do i", "from scratch", "beginner",
       "new to", "tutorial", "lesson", "curriculum", "study", "onboard", "walk me through",
       "walk through", "explain to me", "explain it", "concept",
+      "step by step", "step-by-step", "one step at a time", "no experience", "show me how",
+      "android", "iphone", "chromebook", "windows", "mac", "browser", "upload", "download",
+      "export", "import", "setup", "set up", "install", "app", "website",
     ],
-    preferredPrimary: ["snail", "clear"],
-    preferredSupport: ["snail", "owl", "clear"],
+    preferredPrimary: ["platform-tutor", "snail", "clear"],
+    preferredSupport: ["snail", "platform-tutor", "owl", "clear"],
     avoid: ["shadow", "glove", "whaler", "wild-bird-seed", "captain", "architect", "raven", "gomer-pyle"],
     softAvoidUnless: { ids: ["shadow"], rx: /\b(critique|review|red.?team|audit|stress test)\b/ },
     deliverableRules: [
       { rx: /lesson plan/, label: "Lesson Plan" },
       { rx: /learning path|curriculum/, label: "Learning Path" },
+      { rx: /step by step|step-by-step|one step at a time|how do i|show me|upload|download|export|import|install|setup|set up|android|iphone|chromebook|windows|mac|app\b|website|browser/, label: "Step-by-Step Walkthrough" },
       { rx: /walk ?through|concept|explain/, label: "Concept Walkthrough" },
     ],
     defaultDeliverable: "Concept Walkthrough",
@@ -343,8 +364,10 @@ const CATEGORIES: CategorySpec[] = [
     name: "Communication & Negotiation",
     signals: [
       "negotiate", "negotiation", "counter offer", "counteroffer", "counter proposal",
-      "counter-proposal", "terms", "leverage", "bargain", "conflict", "dispute",
-      "disagreement", "argument", "de-escalate", "mediator", "apology", "tough conversation",
+      "counter-proposal", "terms", "leverage", "bargain", "dispute with",
+      "disagreement with", "argument with", "de-escalate", "mediator", "apology",
+      "tough conversation", "resolve a conflict", "resolve our conflict",
+      "team conflict", "family conflict", "coworker conflict",
     ],
     preferredPrimary: ["diplomat", "glove"],
     preferredSupport: ["glove", "diplomat", "captain", "owl"],
@@ -1039,7 +1062,13 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     avoidIds,
   );
 
-  const avoid = pickAvoid(primaryMode, modes, supporting, text);
+  const { avoid, isHighConfidence: avoidIsHighConfidence } = pickAvoid(
+    primaryMode,
+    modes,
+    supporting,
+    text,
+    catSpec,
+  );
 
   const triggerScore = scored.find((s) => s.mode.id === primaryMode.id)?.score ?? 0;
   const rolesCovered = new Set(team.map((t) => t.role)).size - 1;
@@ -1048,6 +1077,44 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     triggerScore,
     rolesCovered,
     supporting.length > 0,
+  );
+
+  // Distinct confidence values for the UI.
+  const primaryConfidence = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        35 +
+          (catSpec ? 25 : 0) +
+          Math.min((primaryType?.hits.length ?? 0) * 10, 25) +
+          Math.min(triggerScore * 2, 20) -
+          freqPenalty(primaryMode.id) * 3,
+      ),
+    ),
+  );
+  const stackConfidence = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        primaryConfidence * 0.6 +
+          Math.min(rolesCovered, 2) * 12 +
+          (supporting.length ? 10 : -10),
+      ),
+    ),
+  );
+  const { stage, evidence: stageEvidence } = detectStage(text);
+  const stageConfidence = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        (stage === "Idea" && stageEvidence[0]?.startsWith("no stage-specific")
+          ? 25
+          : 50) + Math.min(stageEvidence.length * 18, 50),
+      ),
+    ),
   );
 
   const supportEvidence =
@@ -1065,9 +1132,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     (supporting.length
       ? ` Supporting with ${supporting.map((s) => s.mode).join(" and ")} so the team covers distinct cognitive roles within the category.`
       : ``) +
-    (avoid ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
-
-  const { stage, evidence: stageEvidence } = detectStage(text);
+    (avoid && avoidIsHighConfidence ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
 
   // STEP 2: Category-specific deliverable takes priority over generic deliverables.
   let deliverable: string;
@@ -1113,6 +1178,16 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     deliverable,
   );
 
+  const reasoning: string[] = [
+    `Detected category "${categoryName}"${catSpec ? ` from signals: ${categoryEvidence.join(", ")}` : ""}.`,
+    primaryType
+      ? `Top situation type "${primaryType.type}" with ${primaryType.hits.length} signal hit(s).`
+      : `No clear situation type — relied on category preference and keyword scoring.`,
+    `Selected ${primaryMode.mode} as primary; supporting modes restricted to category-allowed set.`,
+    `Deliverable "${deliverable}" — ${deliverableEvidence.join("; ")}.`,
+    `Stage "${stage}" — ${stageEvidence.join("; ")}.`,
+  ];
+
   bumpCounts([primaryMode.id, ...supporting.map((s) => s.id)]);
 
   return {
@@ -1121,10 +1196,14 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     primaryContribution: roleOf(primaryMode).contribution,
     supporting,
     team,
-    avoid,
+    avoid: avoidIsHighConfidence ? avoid : null,
+    avoidIsHighConfidence,
     explanation,
     combinedPrompt,
     confidence,
+    primaryConfidence,
+    stackConfidence,
+    stageConfidence,
     situationTypes: types.slice(0, 3),
     situationReason: typeReason,
     stage,
@@ -1139,6 +1218,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     deliverableEvidence,
     category: categoryName,
     categoryEvidence,
+    reasoning,
   };
 
 }
@@ -1152,15 +1232,33 @@ function pickAvoid(
   modes: Mode[],
   supporting: Mode[],
   text: string,
-): Mode | null {
+  catSpec: CategorySpec | null,
+): { avoid: Mode | null; isHighConfidence: boolean } {
   const usedIds = new Set([primary.id, ...supporting.map((s) => s.id)]);
   const wantsComedy = COMEDY_OPT_IN.some((k) => text.includes(k));
-  // Gomer Pyle is almost never appropriate unless comedy was requested.
-  if (!wantsComedy) {
+
+  // High-confidence conflict #1: Gomer Pyle in a serious/legal/professional context.
+  const seriousContext =
+    /\b(legal|court|magistrate|attorney|agency|investigation|witness|client|customer|professional)\b/.test(text);
+  if (!wantsComedy && seriousContext) {
     const gp = modes.find((m) => m.id === "gomer-pyle" && !usedIds.has(m.id));
-    if (gp) return gp;
+    if (gp) return { avoid: gp, isHighConfidence: true };
   }
-  // Fall back to an opposite-intensity mode for contrast.
+
+  // High-confidence conflict #2: category explicitly avoids a mode that the user's
+  // keywords would otherwise pull in (e.g. Architect in Creative Writing when the
+  // user mentions "structure" but the category bans it without storytelling intent).
+  if (catSpec) {
+    for (const id of catSpec.avoid) {
+      const m = modes.find((mm) => mm.id === id);
+      if (!m || usedIds.has(id)) continue;
+      const triggered = m.triggers.some((t) => text.includes(t));
+      if (triggered) return { avoid: m, isHighConfidence: true };
+    }
+  }
+
+  // Low-confidence fallback: opposite-intensity contrast pick. Not surfaced by UI
+  // unless the caller treats it as informational.
   const opposites: Record<string, string> = {
     Extreme: "Low",
     High: "Low",
@@ -1168,7 +1266,8 @@ function pickAvoid(
     Medium: "Extreme",
   };
   const target = opposites[primary.intensity];
-  return modes.find((m) => !usedIds.has(m.id) && m.intensity === target) ?? null;
+  const fallback = modes.find((m) => !usedIds.has(m.id) && m.intensity === target) ?? null;
+  return { avoid: fallback, isHighConfidence: false };
 }
 
 // ---- Prompt assembly ----

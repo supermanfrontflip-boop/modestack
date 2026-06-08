@@ -37,9 +37,18 @@ export interface Recommendation {
   supporting: Mode[];
   team: TeamMember[];
   avoid: Mode | null;
+  /** True when the avoid pick is supported by a specific, high-confidence conflict. */
+  avoidIsHighConfidence: boolean;
   explanation: string;
   combinedPrompt: string;
+  /** Legacy overall confidence (kept for compatibility). */
   confidence: number;
+  /** Confidence the chosen primary mode fits the situation. */
+  primaryConfidence: number;
+  /** Confidence the full combined stack fits the situation. */
+  stackConfidence: number;
+  /** Confidence the detected stage is correct. */
+  stageConfidence: number;
   situationTypes: SituationTypeMatch[];
   situationReason: string;
   stage: WorkStage;
@@ -54,6 +63,8 @@ export interface Recommendation {
   deliverableEvidence: string[];
   category: string;
   categoryEvidence: string[];
+  /** Reasoning trace summarizing how the recommendation was built. */
+  reasoning: string[];
 }
 
 

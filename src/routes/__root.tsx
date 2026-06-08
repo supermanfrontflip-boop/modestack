@@ -73,12 +73,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { name: "theme-color", content: "#0a1520" },
-      { title: "Prompt Command Center" },
-      { name: "description", content: "Pick the best AI prompt mode for any situation. Tactical prompt vault, mode recommender, and saved stacks." },
-      { property: "og:title", content: "Prompt Command Center" },
-      { property: "og:description", content: "Pick the best AI prompt mode for any situation." },
+      { title: "ModeStack" },
+      { name: "description", content: "ModeStack helps you choose the right AI thinking mode before you write a prompt.
+Whether you're solving a problem, learning a skill, writing, analyzing, etc." },
+      { property: "og:title", content: "ModeStack" },
+      { property: "og:description", content: "ModeStack helps you choose the right AI thinking mode before you write a prompt.
+Whether you're solving a problem, learning a skill, writing, analyzing, etc." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { name: "twitter:title", content: "ModeStack" },
+      { name: "twitter:description", content: "ModeStack helps you choose the right AI thinking mode before you write a prompt.
+Whether you're solving a problem, learning a skill, writing, analyzing, etc." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/wbJ7s19FmOe8heqqResHPf83U893/social-images/social-1780890296072-1000040715.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/wbJ7s19FmOe8heqqResHPf83U893/social-images/social-1780890296072-1000040715.webp" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

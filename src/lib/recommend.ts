@@ -235,7 +235,7 @@ const SITUATION_TYPES: SituationType[] = [
     type: "Investigation",
     signals: ["investigate", "investigation", "what really happened", "look into", "dig into", "uncover", "fraud", "leak", "witness statements conflict", "statements conflict", "timeline does not match", "timeline doesn't match", "determine what most likely happened", "what most likely happened", "most likely happened", "conflicting accounts", "conflicting evidence", "fact conflict", "fact conflicts", "factual conflict", "factual conflicts", "timeline inconsistency", "timeline inconsistencies"],
     primary: "owl",
-supporting: ["shadow", "glove"],
+ supporting: ["shadow", "glove"],
     reason: "The user's primary goal is uncovering hidden facts, supported by panoramic analysis and a sharp critic.",
   },
   {
@@ -280,8 +280,7 @@ interface CategorySpec {
 const CATEGORIES: CategorySpec[] = [
   {
     name: "Analysis & Investigation",
-    signals: [
-      "investigate", "investigation", "what really happened", "look into", "dig into",
+    signals: ["investigate", "investigation", "what really happened", "look into", "dig into",
       "uncover", "fraud", "leak", "forensic", "contradiction", "contradict",
       "timeline of events", "cover up", "cover-up", "whodunit", "suspicious",
       "what's missing", "missing evidence", "inconsistency", "inconsistencies",

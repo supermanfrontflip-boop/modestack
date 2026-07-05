@@ -184,7 +184,7 @@ const SITUATION_TYPES: SituationType[] = [
   },
   {
     type: "Conflict Resolution",
-    signals: ["conflict", "dispute", "disagreement", "argument", "complaint about", "tension", "resolve", "de-escalate", "mediator"],
+    signals: ["interpersonal conflict", "personal conflict", "workplace conflict", "family conflict", "conflict with", "dispute with", "disagreement with", "argument with", "complaint about", "tension with", "resolve a conflict", "de-escalate", "mediator"],
     primary: "diplomat",
     supporting: ["glove", "owl"],
     reason: "De-escalation needs respectful tone, firm but non-conceding boundaries, and a wide view of what's actually happening.",
@@ -233,8 +233,7 @@ const SITUATION_TYPES: SituationType[] = [
   },
   {
     type: "Investigation",
-    signals: ["investigate", "investigation", "what really happened", "look into", "dig into", "uncover", "fraud", "leak"],
-    primary: "shadow",
+    signals: ["investigate", "investigation", "what really happened", "look into", "dig into", "uncover", "fraud", "leak", "witness statements conflict", "statements conflict", "timeline does not match", "timeline doesn't match", "determine what most likely happened", "what most likely happened", "most likely happened", "conflicting accounts", "conflicting evidence", "fact conflict", "fact conflicts", "factual conflict", "factual conflicts", "timeline inconsistency", "timeline inconsistencies"],
     supporting: ["owl", "architect"],
     reason: "The user's primary goal is uncovering hidden facts, supported by panoramic analysis and a sharp critic.",
   },

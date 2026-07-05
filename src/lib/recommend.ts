@@ -662,7 +662,9 @@ function computeConfidence(
 const ESTABLISHED_SIGNALS: Array<{ rx: RegExp; label: string }> = [
   { rx: /\b(\d{2,})\s+(paid|completed|finished)\s+(jobs|projects|gigs|contracts)\b/, label: "paid jobs completed" },
   { rx: /\bpaid jobs\b/, label: "paid jobs" },
-  { rx: /\bpaying customers?\b/, label: "paying customers" },
+  { rx: /\bexisting paying customers?\b/, label: "existing paying customers" },
+{ rx: /\bcurrent paying customers?\b/, label: "current paying customers" },
+{ rx: /\b\d+\s+paying customers?\b/, label: "number of paying customers" },
   { rx: /\brecurring clients?\b/, label: "recurring clients" },
   { rx: /\brepeat business\b/, label: "repeat business" },
   { rx: /\brepeat customers?\b/, label: "repeat customers" },

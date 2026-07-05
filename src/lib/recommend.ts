@@ -139,12 +139,17 @@ const SITUATION_TYPES: SituationType[] = [
     supporting: ["architect", "apex"],
     reason: "The user is committing to a direction and shipping something new — decisive command beats more analysis, structure keeps it durable, and a hard quality bar protects the launch.",
   },
-  {
+ {
     type: "Client Acquisition",
-    signals: ["client", "clients", "customer", "customers", "lead generation", "acquire", "land a", "win a", "paying", "first ten", "outreach"],
+    signals: [
+      "client", "clients", "customer", "customers", "lead generation",
+      "acquire", "land a", "win a", "paying", "first ten", "first 10",
+      "first client", "first clients", "paying client", "paying clients",
+      "law firm clients", "outreach",
+    ],
     primary: "captain",
     supporting: ["diplomat", "wild-bird-seed", "architect"],
-    reason: "The user is seeking paying customers, trust-building, and business growth rather than analysis. Shadow only as a risk check, Alien only for unconventional approaches.",
+    reason: "The user is trying to acquire customers. First-client and first-paying-client situations are acquisition work, not evidence that the business is already in a growth stage.",
   },
 
   {

@@ -234,7 +234,8 @@ const SITUATION_TYPES: SituationType[] = [
   {
     type: "Investigation",
     signals: ["investigate", "investigation", "what really happened", "look into", "dig into", "uncover", "fraud", "leak", "witness statements conflict", "statements conflict", "timeline does not match", "timeline doesn't match", "determine what most likely happened", "what most likely happened", "most likely happened", "conflicting accounts", "conflicting evidence", "fact conflict", "fact conflicts", "factual conflict", "factual conflicts", "timeline inconsistency", "timeline inconsistencies"],
-    supporting: ["owl", "architect"],
+    primary: "owl",
+supporting: ["shadow", "glove"],
     reason: "The user's primary goal is uncovering hidden facts, supported by panoramic analysis and a sharp critic.",
   },
   {
@@ -290,8 +291,8 @@ const CATEGORIES: CategorySpec[] = [
       "evidence supports both", "determine what happened", "reconstruct events",
       "reconstruct the events", "piece together",
     ],
-    preferredPrimary: ["shadow", "owl"],
-    preferredSupport: ["owl", "shadow", "glove"],
+    preferredPrimary: ["owl", "shadow"],
+preferredSupport: ["shadow", "glove"],
     avoid: ["architect", "captain", "whaler", "wild-bird-seed", "diplomat", "raven", "gomer-pyle"],
     deliverableRules: [
       { rx: /timeline|chronology|sequence of events|inconsistent dates/, label: "Timeline Analysis" },

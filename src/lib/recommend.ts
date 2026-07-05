@@ -227,8 +227,8 @@ const SITUATION_TYPES: SituationType[] = [
  {
   type: "Legal Prediction",
   signals: ["predict how", "most likely to rule", "likely to rule", "judge is most likely", "judicial outcome", "how a judge", "motion to compel", "defendant responded"],
-  primary: "judge",
-  supporting: ["owl", "shadow"],
+  primary: "owl",
+supporting: ["shadow", "glove"],
   reason: "The user is asking to predict how a court is likely to rule, so outcome prediction beats advocacy or drafting.",
 },
   {

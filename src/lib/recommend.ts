@@ -508,15 +508,29 @@ function resolveCategoryAvoid(spec: CategorySpec, text: string): Set<string> {
 function categoryDeliverable(
   spec: CategorySpec,
   text: string,
+  situationType?: string | null,
 ): { label: string; evidence: string[] } {
+  if (situationType === "Client Acquisition") {
+    return {
+      label: "Client Acquisition Plan",
+      evidence: ["Client Acquisition situation type overrides generic Strategy & Positioning deliverable"],
+    };
+  }
+
   for (const r of spec.deliverableRules) {
     if (r.rx.test(text)) {
-      return { label: r.label, evidence: [`matched "${r.label}" rule for ${spec.name}`] };
+      return {
+        label: r.label,
+        evidence: [`matched "${r.label}" rule for ${spec.name}`],
+      };
     }
   }
+
   return {
     label: spec.defaultDeliverable,
     evidence: [`default deliverable for ${spec.name}`],
+  };
+}
   };
 }
 
@@ -1138,7 +1152,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   let deliverable: string;
   let deliverableEvidence: string[];
   if (catSpec) {
-    const cd = categoryDeliverable(catSpec, text);
+   const cd = categoryDeliverable(catSpec, text, primaryType?.type ?? null);
     deliverable = cd.label;
     deliverableEvidence = cd.evidence;
   } else {

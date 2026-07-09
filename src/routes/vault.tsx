@@ -68,10 +68,10 @@ function VaultPage() {
     }
   };
 
-  const confirmExport = () => {
+  const confirmExport = async () => {
     if (!exportPreview) return;
     try {
-      downloadCSV(exportPreview.filename, exportPreview.csv);
+      await downloadCSV(exportPreview.filename, exportPreview.csv);
       toast.success("Export successful", {
         description: `${exportPreview.filename} — ${exportPreview.rowCount} rows × ${exportPreview.columnCount} columns`,
       });

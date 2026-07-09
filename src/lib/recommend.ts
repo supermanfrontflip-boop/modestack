@@ -531,8 +531,8 @@ function categoryDeliverable(
     evidence: [`default deliverable for ${spec.name}`],
   };
 }
-  };
-}
+
+
 
 // ---- Recommendation frequency tracking ----
 // Penalize modes that have been recommended often this session to avoid

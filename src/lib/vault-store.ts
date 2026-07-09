@@ -35,17 +35,10 @@ function loadModes(): Mode[] {
     return SEED_MODES;
   }
   // Normalize legacy records so v2 fields (subcategory, coreObjective, etc.) exist.
-  const normalized = stored
+  // Return the stored collection exactly as stored — do NOT append SEED_MODES.
+  return stored
     .filter((m): m is Partial<Mode> & { id: string; mode: string } => !!m && !!m.id && !!m.mode)
     .map(normalizeMode);
-  const ids = new Set(normalized.map((m) => m.id));
-  const missing = SEED_MODES.filter((m) => !ids.has(m.id));
-  if (missing.length) {
-    const merged = [...normalized, ...missing];
-    write(MODES_KEY, merged);
-    return merged;
-  }
-  return normalized;
 }
 
 export function useModes() {

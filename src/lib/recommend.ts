@@ -442,7 +442,7 @@ preferredSupport: ["shadow", "glove"],
     preferredSupport: ["architect", "captain", "alien", "apex", "diplomat", "wild-bird-seed", "whaler", "shadow", "hawk"],
     avoid: ["raven", "gomer-pyle"],
     deliverableRules: [
-      { rx: /client acquisition|acquisition plan/, label: "Client Acquisition Plan" },
+      { rx: /client acquisition|acquisition plan|first\s+(ten|10|\d+)\s+paying\s+(clients?|customers?)|first\s+(ten|10|\d+)\s+(clients?|customers?)|first\s+paying\s+(clients?|customers?)|first\s+(clients?|customers?)/, label: "Client Acquisition Plan" },
       { rx: /service catalog/, label: "Service Catalog" },
       { rx: /pricing( sheet| page| table)?/, label: "Pricing Sheet" },
       { rx: /landing page/, label: "Landing Page Copy" },
@@ -673,7 +673,7 @@ const ESTABLISHED_SIGNALS: Array<{ rx: RegExp; label: string }> = [
   { rx: /\b(we|i) (already )?have (a |our )?(pricing sheet|price list|service catalog|sop|playbook)/, label: "already has core docs" },
   { rx: /\bvendor relationships?\b/, label: "vendor relationships" },
   { rx: /\b(established|existing|running|operating) (business|company|firm|practice|shop)\b/, label: "established business" },
-  { rx: /\b(law firm clients?|recurring law firm)\b/, label: "recurring law firm clients" },
+  { rx: /\b(recurring law firm clients?|existing law firm clients?|current law firm clients?)\b/, label: "existing law firm clients" },
   { rx: /\b(monthly|weekly) (revenue|jobs|clients)\b/, label: "recurring monthly volume" },
 ];
 

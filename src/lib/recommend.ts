@@ -1001,6 +1001,339 @@ function assessComplexity(
   return supportingCount >= 2 ? "Standard" : "Light";
 }
 
+// ---- Semantic constraint layer (data-driven) ----
+// Explicit user constraints boost any mode whose OWN metadata addresses that
+// constraint. This works with ANY mode collection (numeric, EXP-*, seed ids)
+// because it reads from the mode records, not hardcoded id lookups.
+
+interface ConstraintSignal {
+  key: string;
+  label: string;
+  patterns: RegExp[];
+  /** matches when a mode's metadata is a good fit for this constraint */
+  modeMatch: RegExp;
+  /** matches when a mode is clearly wrong for this constraint (negative) */
+  modeExclude?: RegExp;
+  weight: number;
+  /** if primary addresses this, deliverable label overrides */
+  deliverable?: string;
+  /** synthetic Situation Type label surfaced in the UI */
+  situationType?: string;
+  /** preferred stage if this constraint dominates */
+  stage?: WorkStage;
+}
+
+const CONSTRAINT_SIGNALS: ConstraintSignal[] = [
+  {
+    key: "verbatim_quotation",
+    label: "Verbatim quotation required",
+    patterns: [
+      /\bverbatim\b/,
+      /\bexact\s+(quote|quotes|quotation|quotations|wording|language|text)\b/,
+      /\bdo not paraphrase\b/,
+      /\bdon'?t paraphrase\b/,
+      /\bno paraphras/,
+      /\bonly (verified )?direct quot/,
+      /\bdirect quot(e|ation)/,
+      /\bword[- ]for[- ]word\b/,
+      /\bexactly as (stated|written|said|quoted)\b/,
+      /\bpreserve (the )?wording\b/,
+      /\bunaltered quot/,
+    ],
+    modeMatch: /verbatim|exact\s+quot|direct\s+quot|word[- ]for[- ]word|no paraphras|preserve.*word|unaltered|literal (transcription|quotation)/i,
+    weight: 45,
+    deliverable: "Verified Direct Quotations",
+    situationType: "Verbatim Citation",
+    stage: "Reviewing",
+  },
+  {
+    key: "legal_research",
+    label: "Legal authority research",
+    patterns: [
+      /\bcase\s?law\b/,
+      /\bstatute\b/,
+      /\bstatutory\b/,
+      /\bprecedent\b/,
+      /\bprimary authority\b/,
+      /\bpublished (case|opinion|decision)\b/,
+      /\bverif(y|ied|ying) citation/,
+      /\bsearch\s+\w+\s+law\b/,
+      /\blegal research\b/,
+      /\bauthority (on|for)\b/,
+      /\bcite (a )?(case|statute|rule)/,
+      /\bcolorado law\b|\bfederal law\b|\bstate law\b/,
+      /\brules? of (civil|criminal|appellate) procedure\b/,
+    ],
+    modeMatch: /legal research|case ?law|statute|primary authority|citation|precedent|primary source|legal analysis|research (mode|the) law/i,
+    modeExclude: /comedy|satire|roast|hype|wrestl/i,
+    weight: 40,
+    deliverable: "Legal Authority Research",
+    situationType: "Legal Research",
+    stage: "Planning",
+  },
+  {
+    key: "judicial_prediction",
+    label: "Predict judicial ruling",
+    patterns: [
+      /\bpredict how\b.*\b(judge|court|magistrate|panel)\b/,
+      /\bmost likely to rule\b/,
+      /\blikely (ruling|to rule)\b/,
+      /\bhow (a|the) (judge|court|magistrate)\b.*\brule\b/,
+      /\bjudicial outcome\b/,
+      /\bwhat (is )?the (judge|court) likely\b/,
+    ],
+    modeMatch: /judge|judicial|predict.*rul|likely to rule|court.*rule|bench (analysis|perspective)/i,
+    modeExclude: /comedy|satire|roast/i,
+    weight: 40,
+    deliverable: "Judicial Outcome Prediction",
+    situationType: "Judicial Prediction",
+    stage: "Planning",
+  },
+  {
+    key: "device_tutorial",
+    label: "Beginner device tutorial",
+    patterns: [
+      /\bone step at a time\b/,
+      /\bstep[- ]by[- ]step\b/,
+      /\bteach me how to (upload|download|install|export|import|set ?up|configure)/,
+      /\b(android|iphone|ipad|chromebook|windows|mac|browser)\b.*\b(upload|download|install|export|import|open|find|tap|click)/,
+      /\b(upload|download|install|export|import).*\b(from|on|to) my (android|iphone|ipad|chromebook|windows|mac|phone|laptop)/,
+    ],
+    modeMatch: /platform tutor|device[- ]specific|beginner.*step|one step at a time|step[- ]by[- ]step.*device|platform.*instruction/i,
+    weight: 35,
+    deliverable: "Step-by-Step Walkthrough",
+    situationType: "Device Tutorial",
+    stage: "Drafting",
+  },
+  {
+    key: "surreal_visual",
+    label: "Surreal visual/associative imagery",
+    patterns: [
+      /\bpsychedelic\b/,
+      /\bsurreal(ist)?\b/,
+      /\bdreamlike\b/,
+      /\bmetamorphos/,
+      /\bposter\b.*\b(where|becomes)\b/,
+      /\b(hair|road|highway|river|letter|memory)\b.*\bbecomes\b.*\b(a|an|the)\b.*\bbecomes\b/,
+      /\bmorphs? into\b.*\bmorphs? into\b/,
+    ],
+    modeMatch: /surreal|dreamlike|associative|symbolic|imagery|visual metaphor|psychedelic|lucy|raven|character arc|freestyle|inventor|alien|creative/i,
+    modeExclude: /legal|court|compliance|dispatch|operat(ing|ions)/i,
+    weight: 35,
+    deliverable: "Visual Concept",
+    situationType: "Creative Visual",
+    stage: "Drafting",
+  },
+  {
+    key: "evidence_reconciliation",
+    label: "Reconcile conflicting evidence",
+    patterns: [
+      /\bfacts.*do not match\b/,
+      /\bfacts.*don'?t match\b/,
+      /\bfacts.*do not agree\b/,
+      /\bwhat most likely happened\b/,
+      /\bdetermine what (most likely )?happened\b/,
+      /\btimeline.*inconsist/,
+      /\bconflicting (accounts|witnesses|statements|evidence)/,
+      /\breconcile\b.*evidence/,
+      /\bpiece together\b.*\b(what happened|events)\b/,
+    ],
+    modeMatch: /detective|investigat|evidence|reconstruct|contradict|forensic|reconcile|piece together/i,
+    modeExclude: /comedy|satire|roast|hype/i,
+    weight: 40,
+    deliverable: "Most Likely Explanation",
+    situationType: "Evidence Reconciliation",
+    stage: "Reviewing",
+  },
+];
+
+function modeBlob(m: Mode): string {
+  return [
+    m.mode,
+    m.category,
+    m.subcategory,
+    m.purpose,
+    m.coreObjective,
+    m.corePrinciples,
+    m.bestFor,
+    m.attributes,
+    m.fullPrompt,
+    (m.triggers || []).join(" "),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function extractConstraints(text: string): ConstraintSignal[] {
+  const active: ConstraintSignal[] = [];
+  for (const c of CONSTRAINT_SIGNALS) {
+    if (c.patterns.some((rx) => rx.test(text))) active.push(c);
+  }
+  return active;
+}
+
+interface SemanticScore {
+  mode: Mode;
+  score: number;
+  reasons: string[];
+  addressedConstraints: string[];
+}
+
+function semanticRank(
+  modes: Mode[],
+  text: string,
+  constraints: ConstraintSignal[],
+): SemanticScore[] {
+  const results: SemanticScore[] = [];
+  for (const m of modes) {
+    const reasons: string[] = [];
+    const addressed: string[] = [];
+    let s = 0;
+    const blob = modeBlob(m);
+
+    // trigger hits
+    for (const t of m.triggers || []) {
+      if (t && text.includes(t.toLowerCase())) {
+        s += t.length > 6 ? 4 : 2;
+        reasons.push(`trigger:${t}`);
+      }
+    }
+    // category / subcategory presence in text
+    const catL = (m.category || "").toLowerCase();
+    const subL = (m.subcategory || "").toLowerCase();
+    if (catL && catL.length > 3 && text.includes(catL)) { s += 4; reasons.push(`cat:${m.category}`); }
+    if (subL && subL.length > 3 && text.includes(subL)) { s += 3; reasons.push(`sub:${m.subcategory}`); }
+
+    // bestFor / purpose / coreObjective word overlap (weak signal)
+    const target = `${m.bestFor} ${m.purpose} ${m.coreObjective ?? ""}`.toLowerCase();
+    const words = target.split(/\W+/).filter((w) => w.length >= 5);
+    let overlap = 0;
+    for (const w of new Set(words)) {
+      if (text.includes(w)) overlap++;
+    }
+    if (overlap) { s += Math.min(overlap, 6); reasons.push(`overlap:${overlap}`); }
+
+    // constraint boosts (dominant signal)
+    for (const c of constraints) {
+      const excluded = c.modeExclude?.test(blob);
+      const matched = c.modeMatch.test(blob);
+      if (matched && !excluded) {
+        s += c.weight;
+        addressed.push(c.key);
+        reasons.push(`constraint:${c.key}+${c.weight}`);
+      } else if (excluded && c.patterns.some((rx) => rx.test(text))) {
+        s -= 10;
+        reasons.push(`constraint-exclude:${c.key}`);
+      }
+    }
+
+    // avoidWhen negative signal
+    if (m.avoidWhen) {
+      const avWords = m.avoidWhen.toLowerCase().split(/\W+/).filter((w) => w.length >= 5);
+      let hits = 0;
+      for (const w of new Set(avWords)) if (text.includes(w)) hits++;
+      if (hits >= 2) { s -= 6 + hits; reasons.push(`avoidWhen-hits:${hits}`); }
+    }
+
+    results.push({ mode: m, score: s, reasons, addressedConstraints: addressed });
+  }
+  results.sort((a, b) => b.score - a.score);
+  return results;
+}
+
+/** stackWith is stored as free-form prose; parse mode names/ids from it */
+function stackWithIds(primary: Mode, modes: Mode[]): Set<string> {
+  const raw = (primary.stackWith || "").toLowerCase();
+  const ids = new Set<string>();
+  if (!raw) return ids;
+  for (const m of modes) {
+    if (m.id === primary.id) continue;
+    const nameL = m.mode.toLowerCase();
+    const shortName = nameL.replace(/\s*mode\s*$/, "");
+    if (raw.includes(nameL) || (shortName.length > 3 && raw.includes(shortName))) {
+      ids.add(m.id);
+    }
+  }
+  return ids;
+}
+
+/** Build stack: constraint-coverage first, then stackWith compatibility, then role diversity. */
+function buildSemanticStack(
+  primary: Mode,
+  modes: Mode[],
+  ranked: SemanticScore[],
+  constraints: ConstraintSignal[],
+  avoidIds: Set<string>,
+): { supporting: Mode[]; team: TeamMember[]; stackReasons: string[] } {
+  const used = new Set<string>([primary.id]);
+  const supporting: Mode[] = [];
+  const stackReasons: string[] = [];
+  const primaryScore = ranked.find((r) => r.mode.id === primary.id);
+  const primaryAddressed = new Set(primaryScore?.addressedConstraints ?? []);
+  const stackCompat = stackWithIds(primary, modes);
+
+  // 1. For each active constraint NOT already addressed by primary,
+  //    add the top-scored mode that addresses it.
+  for (const c of constraints) {
+    if (supporting.length >= 2) break;
+    if (primaryAddressed.has(c.key)) continue;
+    const cand = ranked.find(
+      (r) =>
+        !used.has(r.mode.id) &&
+        !avoidIds.has(r.mode.id) &&
+        r.addressedConstraints.includes(c.key) &&
+        r.score > 0,
+    );
+    if (cand) {
+      supporting.push(cand.mode);
+      used.add(cand.mode.id);
+      stackReasons.push(`${cand.mode.mode} addresses ${c.label} (score ${cand.score})`);
+    }
+  }
+
+  // 2. If room remains, fill from stackWith compatibility with high semantic score.
+  if (supporting.length < 2) {
+    for (const r of ranked) {
+      if (supporting.length >= 2) break;
+      if (used.has(r.mode.id) || avoidIds.has(r.mode.id)) continue;
+      if (!stackCompat.has(r.mode.id)) continue;
+      if (r.score < 4) continue;
+      if (roleOf(r.mode).role === roleOf(primary).role && supporting.every((s) => roleOf(s).role === roleOf(primary).role)) {
+        // avoid stacking three of the same role
+        continue;
+      }
+      supporting.push(r.mode);
+      used.add(r.mode.id);
+      stackReasons.push(`${r.mode.mode} is stackWith-compatible with strong semantic score (${r.score})`);
+    }
+  }
+
+  // 3. Final fallback: role diversity from top scorers with score>threshold.
+  if (supporting.length === 0) {
+    const primaryRole = roleOf(primary).role;
+    for (const r of ranked) {
+      if (supporting.length >= 1) break;
+      if (used.has(r.mode.id) || avoidIds.has(r.mode.id)) continue;
+      if (r.score < 6) continue;
+      if (roleOf(r.mode).role === primaryRole) continue;
+      supporting.push(r.mode);
+      used.add(r.mode.id);
+      stackReasons.push(`${r.mode.mode} adds a distinct cognitive role (${roleOf(r.mode).role})`);
+    }
+  }
+
+  const team: TeamMember[] = [
+    { mode: primary, role: roleOf(primary).role, contribution: roleOf(primary).contribution },
+    ...supporting.map((m) => ({
+      mode: m,
+      role: roleOf(m).role,
+      contribution: roleOf(m).contribution,
+    })),
+  ];
+  return { supporting, team, stackReasons };
+}
+
 // ---- Main ----
 
 export function recommend(situation: string, modes: Mode[]): Recommendation | null {

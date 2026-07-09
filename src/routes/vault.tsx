@@ -157,11 +157,7 @@ function VaultPage() {
             <Download className="h-4 w-4" />
           </Button>
           <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" size="icon" title="Reset to seed">
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-              <Button
+            <Button
   variant="outline"
   size="sm"
   onClick={() => setCsvTextOpen(true)}
@@ -169,7 +165,12 @@ function VaultPage() {
 >
   SHOW CSV
 </Button>
-            </AlertDialogTrigger>
+
+<AlertDialogTrigger asChild>
+  <Button variant="outline" size="icon" title="Reset to seed">
+    <RotateCcw className="h-4 w-4" />
+  </Button>
+</AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Reset vault to defaults?</AlertDialogTitle>

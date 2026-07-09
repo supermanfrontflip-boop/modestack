@@ -31,7 +31,7 @@ function VaultPage() {
   const [editing, setEditing] = useState<Mode | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pendingImport, setPendingImport] = useState<{ modes: Mode[]; errors: string[] } | null>(null);
-
+  const [csvTextOpen, setCsvTextOpen] = useState(false);
   const [exportPreview, setExportPreview] = useState<{
     filename: string;
     csv: string;
@@ -161,6 +161,14 @@ function VaultPage() {
               <Button variant="outline" size="icon" title="Reset to seed">
                 <RotateCcw className="h-4 w-4" />
               </Button>
+              <Button
+  variant="outline"
+  size="sm"
+  onClick={() => setCsvTextOpen(true)}
+  className="mono tracking-wider"
+>
+  SHOW CSV
+</Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
@@ -298,7 +306,29 @@ function VaultPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+<Dialog open={csvTextOpen} onOpenChange={setCsvTextOpen}>
+  <DialogContent className="max-w-xl">
+    <DialogHeader>
+      <DialogTitle className="mono tracking-widest text-primary">
+        VAULT CSV TEXT
+      </DialogTitle>
+      <DialogDescription>
+        Select all of this text manually and copy it if download is blocked.
+      </DialogDescription>
+    </DialogHeader>
 
+    <textarea
+      readOnly
+      value={modesToCSV(modes)}
+      className="w-full h-80 text-xs font-mono bg-background border border-border rounded-md p-2"
+      onFocus={(e) => e.currentTarget.select()}
+    />
+
+    <DialogFooter>
+      <Button onClick={() => setCsvTextOpen(false)}>Close</Button>
+    </DialogFooter>
+  </DialogContent>
+</Dialog>
       <Dialog open={!!exportPreview} onOpenChange={(o) => !o && setExportPreview(null)}>
         <DialogContent className="max-w-xl">
           <DialogHeader>

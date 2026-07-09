@@ -1344,68 +1344,83 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   const types = detectSituationTypes(text);
   const scored = modes.map((m) => scoreMode(m, text)).sort((a, b) => b.score - a.score);
 
-  // STEP 1: determine Category before selecting any mode.
+  // STEP 1: extract explicit constraint signals (verbatim, legal research, judicial
+  // prediction, tutorial, surreal visual, evidence reconciliation, etc.).
+  const constraints = extractConstraints(text);
+  const constraintKeys = constraints.map((c) => c.key);
+
+  // STEP 2: category detection (kept as a soft compatibility signal, no longer
+  // the sole primary picker).
   const { spec: catSpec, evidence: categoryEvidence } = detectCategory(text);
-  const categoryName = catSpec?.name ?? "Uncategorized";
   const avoidIds = catSpec ? resolveCategoryAvoid(catSpec, text) : new Set<string>();
 
-  // Determine Situation Type (still used for reason text + default deliverable fallback).
+  // STEP 3: semantic ranking against ALL mode metadata + constraints.
+  const ranked = semanticRank(modes, text, constraints);
+  const rankedAllowed = ranked.filter((r) => !avoidIds.has(r.mode.id));
+  const semanticTop = rankedAllowed[0];
+
+  // Determine Situation Type (existing detector — used for reason text + fallback).
   const primaryType = types[0];
-
-  // STEP 3: select primary mode.
-  // Category-specific preference takes priority over generic Situation Type pick
-  // so business-oriented modes (Architect/Shadow) can't become universal defaults.
-  let primaryMode: Mode | null = null;
-  let preferredSupport: string[] = [];
-  let typeReason = "";
   const detectedTypeNames: string[] = [];
-
-  if (catSpec) {
-    for (const id of catSpec.preferredPrimary) {
-      if (avoidIds.has(id)) continue;
-      const m = byId(id);
-      if (m) { primaryMode = m; break; }
-    }
-    preferredSupport = catSpec.preferredSupport.filter((id) => !avoidIds.has(id));
-    typeReason = `Category "${catSpec.name}" — supporting modes are restricted to fit this category and avoid business-oriented leakage.`;
-  }
-
   if (primaryType) {
     detectedTypeNames.push(primaryType.type);
     if (types[1] && types[1].score >= primaryType.score * 0.75) {
       detectedTypeNames.push(types[1].type);
     }
-    if (!primaryMode) {
-      const st = SITUATION_TYPES.find((s) => s.type === primaryType.type)!;
-      const candidate = byId(st.primary);
-      if (candidate && !avoidIds.has(candidate.id)) {
-        primaryMode = candidate;
-        preferredSupport = preferredSupport.length
-          ? preferredSupport
-          : st.supporting.filter((id) => !avoidIds.has(id));
-        typeReason = st.reason;
-      }
-    }
   }
 
-  // Fallback to top-scoring keyword match, respecting category avoid.
+  // STEP 4: pick primary. Semantic score wins when it's meaningful; category /
+  // situation-type preferred ids act as tiebreaker only.
+  let primaryMode: Mode | null = null;
+  let typeReason = "";
+  let primarySource = "semantic";
+
+  const semanticThreshold = 6;
+  const dominantConstraint = constraints.length > 0 &&
+    semanticTop &&
+    semanticTop.addressedConstraints.length > 0;
+
+  if (dominantConstraint || (semanticTop && semanticTop.score >= semanticThreshold)) {
+    primaryMode = semanticTop!.mode;
+    typeReason = dominantConstraint
+      ? `The situation contains explicit constraint(s) [${constraints.map((c) => c.label).join("; ")}], and ${primaryMode.mode}'s metadata directly addresses them.`
+      : `Selected from semantic scoring across category/purpose/bestFor/triggers (score ${semanticTop!.score}).`;
+  }
+
+  // Fallback: category preferred, then situation-type preferred, then top keyword.
+  if (!primaryMode && catSpec) {
+    for (const id of catSpec.preferredPrimary) {
+      if (avoidIds.has(id)) continue;
+      const m = byId(id);
+      if (m) { primaryMode = m; primarySource = "category"; break; }
+    }
+    if (primaryMode) {
+      typeReason = `Category "${catSpec.name}" preferred primary — no dominant semantic or constraint signal.`;
+    }
+  }
+  if (!primaryMode && primaryType) {
+    const st = SITUATION_TYPES.find((s) => s.type === primaryType.type)!;
+    const candidate = byId(st.primary);
+    if (candidate && !avoidIds.has(candidate.id)) {
+      primaryMode = candidate;
+      primarySource = "situation-type";
+      typeReason = st.reason;
+    }
+  }
   if (!primaryMode) {
     const allowed = scored.filter((s) => !avoidIds.has(s.mode.id));
-    primaryMode =
-      (allowed[0]?.score ?? 0) > 0
-        ? allowed[0].mode
-        : byId("owl") ?? modes[0];
-    if (!typeReason) {
-      typeReason =
-        "No specific Situation Type signals — falling back to strongest keyword match within category constraints.";
-    }
+    primaryMode = (allowed[0]?.score ?? 0) > 0 ? allowed[0].mode : (byId("owl") ?? modes[0]);
+    primarySource = "keyword-fallback";
+    if (!typeReason) typeReason = "No dominant signals — falling back to strongest keyword match.";
   }
 
-  const { supporting, team } = buildTeamFromPreferred(
+  // STEP 5: build stack. Constraints not covered by primary come first,
+  // then stackWith compatibility, then role diversity.
+  const { supporting, team, stackReasons } = buildSemanticStack(
     primaryMode,
     modes,
-    preferredSupport,
-    scored,
+    ranked,
+    constraints,
     avoidIds,
   );
 
@@ -1417,26 +1432,27 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     catSpec,
   );
 
-  const triggerScore = scored.find((s) => s.mode.id === primaryMode.id)?.score ?? 0;
+  const triggerScore = scored.find((s) => s.mode.id === primaryMode!.id)?.score ?? 0;
   const rolesCovered = new Set(team.map((t) => t.role)).size - 1;
+  const primarySemanticScore = ranked.find((r) => r.mode.id === primaryMode!.id)?.score ?? 0;
+
   const confidence = computeConfidence(
-    (primaryType?.hits.length ?? 0) + (catSpec ? categoryEvidence.length : 0),
-    triggerScore,
+    (primaryType?.hits.length ?? 0) + (catSpec ? categoryEvidence.length : 0) + constraints.length * 2,
+    triggerScore + Math.max(0, primarySemanticScore - triggerScore),
     rolesCovered,
     supporting.length > 0,
   );
 
-  // Distinct confidence values for the UI.
   const primaryConfidence = Math.max(
     0,
     Math.min(
       100,
       Math.round(
-        35 +
-          (catSpec ? 25 : 0) +
-          Math.min((primaryType?.hits.length ?? 0) * 10, 25) +
-          Math.min(triggerScore * 2, 20) -
-          freqPenalty(primaryMode.id) * 3,
+        30 +
+          (constraints.length ? Math.min(constraints.length * 15, 35) : 0) +
+          Math.min(primarySemanticScore, 30) +
+          (catSpec ? 10 : 0) -
+          freqPenalty(primaryMode.id) * 2,
       ),
     ),
   );
@@ -1446,46 +1462,39 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
       100,
       Math.round(
         primaryConfidence * 0.6 +
-          Math.min(rolesCovered, 2) * 12 +
-          (supporting.length ? 10 : -10),
+          Math.min(rolesCovered, 2) * 10 +
+          (supporting.length ? 12 : -10),
       ),
     ),
   );
-  const { stage, evidence: stageEvidence } = detectStage(text);
+
+  const { stage: rawStage, evidence: stageEvidence } = detectStage(text);
+  // Constraint-driven stage override
+  const constraintStage = constraints.find((c) => c.stage)?.stage;
+  const stage: WorkStage = constraintStage ?? rawStage;
+  if (constraintStage && constraintStage !== rawStage) {
+    stageEvidence.unshift(`overridden by constraint: ${constraints.find((c) => c.stage)?.label}`);
+  }
   const stageConfidence = Math.max(
     0,
     Math.min(
       100,
       Math.round(
-        (stage === "Idea" && stageEvidence[0]?.startsWith("no stage-specific")
-          ? 25
-          : 50) + Math.min(stageEvidence.length * 18, 50),
+        (constraintStage ? 65 : stage === "Idea" && stageEvidence[0]?.startsWith("no stage-specific") ? 25 : 50) +
+          Math.min(stageEvidence.length * 15, 45),
       ),
     ),
   );
 
-  const supportEvidence =
-    triggerScore > 0
-      ? `Keyword evidence (${scored.find((s) => s.mode.id === primaryMode!.id)?.hits.slice(0, 3).join(", ")}) supports this pick.`
-      : `No strong keyword signals for the primary mode — selection is driven by Category and Situation Type.`;
-
-  const explanation =
-    `Category: ${categoryName}. ` +
-    (primaryType
-      ? `Situation Type: ${detectedTypeNames.join(" + ")}. `
-      : `No clear Situation Type signals. `) +
-    `${primaryMode.mode} is primary because ${typeReason} ` +
-    supportEvidence +
-    (supporting.length
-      ? ` Supporting with ${supporting.map((s) => s.mode).join(" and ")} so the team covers distinct cognitive roles within the category.`
-      : ``) +
-    (avoid && avoidIsHighConfidence ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
-
-  // STEP 2: Category-specific deliverable takes priority over generic deliverables.
+  // STEP 6: deliverable — constraint override > category rules > generic rules.
   let deliverable: string;
   let deliverableEvidence: string[];
-  if (catSpec) {
-   const cd = categoryDeliverable(catSpec, text, primaryType?.type ?? null);
+  const overrideConstraint = constraints.find((c) => c.deliverable);
+  if (overrideConstraint) {
+    deliverable = overrideConstraint.deliverable!;
+    deliverableEvidence = [`explicit constraint: ${overrideConstraint.label}`];
+  } else if (catSpec) {
+    const cd = categoryDeliverable(catSpec, text, primaryType?.type ?? null);
     deliverable = cd.label;
     deliverableEvidence = cd.evidence;
   } else {
@@ -1493,6 +1502,17 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     deliverable = dd.deliverable;
     deliverableEvidence = dd.evidence;
   }
+
+  // STEP 7: situation-type display — surface constraint-driven types too.
+  const constraintTypeNames = constraints.map((c) => c.situationType).filter((s): s is string => !!s);
+  const displayTypeNames = constraintTypeNames.length ? constraintTypeNames : detectedTypeNames;
+  const situationTypesForDisplay: SituationTypeMatch[] = constraintTypeNames.length
+    ? constraints
+        .filter((c) => c.situationType)
+        .map((c) => ({ type: c.situationType!, score: c.weight, hits: [c.key] }))
+    : types.slice(0, 3);
+
+  const categoryName = catSpec?.name ?? primaryMode.category ?? "Uncategorized";
 
   const missingPrerequisites = detectPrerequisites(text, deliverable);
   const { isHuman: bottleneckIsHuman, reason: bottleneckReason } = detectBottleneck(text, stage);
@@ -1516,24 +1536,65 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     aiRecommended,
   );
 
+  const supportEvidence =
+    primarySemanticScore > 0
+      ? `Semantic score ${primarySemanticScore} against the mode's own metadata.`
+      : `No strong semantic signals — pick came from ${primarySource}.`;
+
+  const explanation =
+    `Category: ${categoryName}. ` +
+    (displayTypeNames.length
+      ? `Situation Type: ${displayTypeNames.join(" + ")}. `
+      : `No clear Situation Type signals. `) +
+    `${primaryMode.mode} is primary because ${typeReason} ` +
+    supportEvidence +
+    (supporting.length
+      ? ` Stack: ${supporting.map((s) => s.mode).join(" and ")}${stackReasons.length ? ` (${stackReasons.join("; ")})` : ""}.`
+      : ` No complementary mode surfaced a distinct-enough function to stack.`) +
+    (avoid && avoidIsHighConfidence ? ` Avoid ${avoid.mode} here — ${avoid.avoidWhen.toLowerCase()}` : "");
+
   const combinedPrompt = buildCombinedPrompt(
     situation,
     primaryMode,
     supporting,
-    detectedTypeNames,
+    displayTypeNames,
     stage,
     deliverable,
   );
 
   const reasoning: string[] = [
-    `Detected category "${categoryName}"${catSpec ? ` from signals: ${categoryEvidence.join(", ")}` : ""}.`,
+    `Constraints detected: ${constraints.length ? constraints.map((c) => c.label).join(", ") : "none"}.`,
+    `Semantic top: ${semanticTop ? `${semanticTop.mode.mode} (score ${semanticTop.score}, addresses ${semanticTop.addressedConstraints.join(",") || "no constraints"})` : "none"}.`,
+    `Category "${categoryName}"${catSpec ? ` from signals: ${categoryEvidence.join(", ")}` : ""}.`,
     primaryType
       ? `Top situation type "${primaryType.type}" with ${primaryType.hits.length} signal hit(s).`
-      : `No clear situation type — relied on category preference and keyword scoring.`,
-    `Selected ${primaryMode.mode} as primary; supporting modes restricted to category-allowed set.`,
+      : `No clear situation type via keyword detector.`,
+    `Primary ${primaryMode.mode} via ${primarySource}.`,
+    supporting.length
+      ? `Stack: ${stackReasons.join(" | ")}.`
+      : `Stack: none — no complementary function found.`,
     `Deliverable "${deliverable}" — ${deliverableEvidence.join("; ")}.`,
     `Stage "${stage}" — ${stageEvidence.join("; ")}.`,
   ];
+
+  // Development diagnostics — inspect with window.__lastRecommendationDebug
+  if (typeof globalThis !== "undefined") {
+    (globalThis as unknown as { __lastRecommendationDebug?: unknown }).__lastRecommendationDebug = {
+      situation,
+      constraints: constraintKeys,
+      semanticTop10: rankedAllowed.slice(0, 10).map((r) => ({
+        id: r.mode.id, mode: r.mode.mode, score: r.score, addresses: r.addressedConstraints, reasons: r.reasons,
+      })),
+      primary: { id: primaryMode.id, mode: primaryMode.mode, source: primarySource, semanticScore: primarySemanticScore },
+      supporting: supporting.map((s) => ({ id: s.id, mode: s.mode })),
+      stackReasons,
+      avoidIds: [...avoidIds],
+      category: categoryName,
+      situationType: displayTypeNames,
+      stage,
+      deliverable,
+    };
+  }
 
   bumpCounts([primaryMode.id, ...supporting.map((s) => s.id)]);
 
@@ -1551,7 +1612,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     primaryConfidence,
     stackConfidence,
     stageConfidence,
-    situationTypes: types.slice(0, 3),
+    situationTypes: situationTypesForDisplay,
     situationReason: typeReason,
     stage,
     deliverable,
@@ -1567,7 +1628,6 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     categoryEvidence,
     reasoning,
   };
-
 }
 
 // ---- Avoid selection ----

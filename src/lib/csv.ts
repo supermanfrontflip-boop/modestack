@@ -151,14 +151,39 @@ export function csvToModes(text: string): ImportResult {
   return { modes, errors };
 }
 
-export function downloadCSV(filename: string, csv: string) {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+export async function downloadCSV(filename: string, csv: string) {
+  const blob = new Blob([csv], {
+    type: "text/csv;charset=utf-8",
+  });
+
+  const file = new File([blob], filename, {
+    type: "text/csv;charset=utf-8",
+  });
+
+  if (
+    navigator.share &&
+    navigator.canShare &&
+    navigator.canShare({ files: [file] })
+  ) {
+    await navigator.share({
+      files: [file],
+      title: "ModeStack Vault Export",
+    });
+    return;
+  }
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
+
   a.href = url;
   a.download = filename;
+  a.style.display = "none";
+
   document.body.appendChild(a);
   a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 5000);
 }

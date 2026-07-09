@@ -156,8 +156,7 @@ function VaultPage() {
           <Button variant="outline" size="icon" onClick={onExport} title="Export CSV">
             <Download className="h-4 w-4" />
           </Button>
-          <AlertDialog>
-            <Button
+          <Button
   variant="outline"
   size="sm"
   onClick={() => setCsvTextOpen(true)}
@@ -166,7 +165,8 @@ function VaultPage() {
   SHOW CSV
 </Button>
 
-<AlertDialogTrigger asChild>
+<AlertDialog>
+  <AlertDialogTrigger asChild>
   <Button variant="outline" size="icon" title="Reset to seed">
     <RotateCcw className="h-4 w-4" />
   </Button>

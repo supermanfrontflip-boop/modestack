@@ -165,11 +165,15 @@ export async function downloadCSV(filename: string, csv: string) {
     navigator.canShare &&
     navigator.canShare({ files: [file] })
   ) {
-    await navigator.share({
-      files: [file],
-      title: "ModeStack Vault Export",
-    });
-    return;
+    try {
+      await navigator.share({
+        files: [file],
+        title: "ModeStack Vault Export",
+      });
+      return;
+    } catch {
+      // If Android/Chrome denies share permission, fall through to normal download.
+    }
   }
 
   const url = URL.createObjectURL(blob);

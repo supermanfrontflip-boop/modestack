@@ -96,7 +96,7 @@ export function useModes() {
     return { added, updated };
   }, []);
 
-  return { modes, upsertMode, deleteMode, resetModes, replaceModes, mergeModes };
+  return { modes, hydrated, upsertMode, deleteMode, resetModes, replaceModes, mergeModes };
 }
 
 export function useFavorites() {

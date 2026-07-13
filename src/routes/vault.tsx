@@ -195,8 +195,9 @@ function VaultPage() {
           onChange={onFileChosen}
         />
         <div className="text-[10px] mono tracking-widest text-muted-foreground">
-          {filtered.length} / {modes.length} MODES
+          {hydrated ? `${filtered.length} / ${modes.length} MODES` : "LOADING VAULT…"}
         </div>
+
       </div>
 
       <Accordion type="multiple" className="space-y-2">

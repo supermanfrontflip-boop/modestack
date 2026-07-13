@@ -42,12 +42,14 @@ function loadModes(): Mode[] {
 }
 
 export function useModes() {
+  const [hydrated, setHydrated] = useState<boolean>(() => typeof window !== "undefined");
   const [modes, setModes] = useState<Mode[]>(() =>
-    typeof window === "undefined" ? SEED_MODES : loadModes(),
+    typeof window === "undefined" ? [] : loadModes(),
   );
 
   useEffect(() => {
     setModes(loadModes());
+    setHydrated(true);
     const onChange = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (!detail || detail.key === MODES_KEY) setModes(loadModes());

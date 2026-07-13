@@ -42,12 +42,12 @@ function loadModes(): Mode[] {
 }
 
 export function useModes() {
-  const [modes, setModes] = useState<Mode[]>(() =>
-    typeof window === "undefined" ? SEED_MODES : loadModes(),
-  );
+  const [hydrated, setHydrated] = useState<boolean>(false);
+  const [modes, setModes] = useState<Mode[]>([]);
 
   useEffect(() => {
     setModes(loadModes());
+    setHydrated(true);
     const onChange = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (!detail || detail.key === MODES_KEY) setModes(loadModes());
@@ -94,7 +94,7 @@ export function useModes() {
     return { added, updated };
   }, []);
 
-  return { modes, upsertMode, deleteMode, resetModes, replaceModes, mergeModes };
+  return { modes, hydrated, upsertMode, deleteMode, resetModes, replaceModes, mergeModes };
 }
 
 export function useFavorites() {

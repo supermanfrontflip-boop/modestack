@@ -25,7 +25,7 @@ export const Route = createFileRoute("/vault")({
 });
 
 function VaultPage() {
-  const { modes, upsertMode, deleteMode, resetModes, replaceModes, mergeModes } = useModes();
+  const { modes, hydrated, upsertMode, deleteMode, resetModes, replaceModes, mergeModes } = useModes();
   const [q, setQ] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Mode | undefined>();
@@ -195,8 +195,9 @@ function VaultPage() {
           onChange={onFileChosen}
         />
         <div className="text-[10px] mono tracking-widest text-muted-foreground">
-          {filtered.length} / {modes.length} MODES
+          {hydrated ? `${filtered.length} / ${modes.length} MODES` : "LOADING VAULT…"}
         </div>
+
       </div>
 
       <Accordion type="multiple" className="space-y-2">

@@ -25,7 +25,7 @@ export const Route = createFileRoute("/vault")({
 });
 
 function VaultPage() {
-  const { modes, upsertMode, deleteMode, resetModes, replaceModes, mergeModes } = useModes();
+  const { modes, hydrated, upsertMode, deleteMode, resetModes, replaceModes, mergeModes } = useModes();
   const [q, setQ] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<Mode | undefined>();

@@ -42,10 +42,8 @@ function loadModes(): Mode[] {
 }
 
 export function useModes() {
-  const [hydrated, setHydrated] = useState<boolean>(() => typeof window !== "undefined");
-  const [modes, setModes] = useState<Mode[]>(() =>
-    typeof window === "undefined" ? [] : loadModes(),
-  );
+  const [hydrated, setHydrated] = useState<boolean>(false);
+  const [modes, setModes] = useState<Mode[]>([]);
 
   useEffect(() => {
     setModes(loadModes());

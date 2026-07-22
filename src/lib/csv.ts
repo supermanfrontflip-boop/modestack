@@ -13,7 +13,7 @@ const COLUMNS = [
   "integrityChecks",
   "bestFor",
   "avoidWhen",
-  "stackWith",
+  "layers",
   "attributes",
   "exitPhrase",
   "intensity",
@@ -96,6 +96,11 @@ export function csvToModes(text: string): ImportResult {
     const i = header.indexOf(c);
     if (i >= 0) idx[c] = i;
   });
+  // Backward compatibility: accept legacy "stackWith" column as "layers".
+  if (idx["layers"] === undefined) {
+    const legacy = header.indexOf("stackWith");
+    if (legacy >= 0) idx["layers"] = legacy;
+  }
   const required: Col[] = ["mode", "purpose", "fullPrompt"];
   for (const r of required) {
     if (idx[r] === undefined) errors.push(`Missing required column: ${r}`);
@@ -130,7 +135,7 @@ export function csvToModes(text: string): ImportResult {
       integrityChecks: get("integrityChecks"),
       bestFor: get("bestFor"),
       avoidWhen: get("avoidWhen"),
-      stackWith: get("stackWith"),
+      layers: get("layers"),
       attributes: get("attributes"),
       exitPhrase: get("exitPhrase") || `Exit ${name}.`,
       intensity,

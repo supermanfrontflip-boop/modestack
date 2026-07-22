@@ -136,7 +136,7 @@ export function ModeEditorDialog({ open, onOpenChange, initial, onSave }: Props)
             <Textarea rows={2} value={form.avoidWhen} onChange={(e) => update("avoidWhen", e.target.value)} />
           </Field>
           <Field label="Stack With">
-            <Input value={form.stackWith} onChange={(e) => update("stackWith", e.target.value)} placeholder="Owl Mode, Clear Mode" />
+            <Input value={form.layers} onChange={(e) => update("layers", e.target.value)} placeholder="Owl Mode, Clear Mode" />
           </Field>
           <Field label="Attributes (future modifiers)">
             <Textarea

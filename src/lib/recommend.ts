@@ -1242,9 +1242,9 @@ function semanticRank(
   return results;
 }
 
-/** stackWith is stored as free-form prose; parse mode names/ids from it */
-function stackWithIds(primary: Mode, modes: Mode[]): Set<string> {
-  const raw = (primary.stackWith || "").toLowerCase();
+/** layers is stored as free-form prose; parse mode names/ids from it */
+function layersIds(primary: Mode, modes: Mode[]): Set<string> {
+  const raw = (primary.layers || "").toLowerCase();
   const ids = new Set<string>();
   if (!raw) return ids;
   for (const m of modes) {
@@ -1258,7 +1258,7 @@ function stackWithIds(primary: Mode, modes: Mode[]): Set<string> {
   return ids;
 }
 
-/** Build stack: constraint-coverage first, then stackWith compatibility, then role diversity. */
+/** Build stack: constraint-coverage first, then layers compatibility, then role diversity. */
 function buildSemanticStack(
   primary: Mode,
   modes: Mode[],
@@ -1271,7 +1271,7 @@ function buildSemanticStack(
   const stackReasons: string[] = [];
   const primaryScore = ranked.find((r) => r.mode.id === primary.id);
   const primaryAddressed = new Set(primaryScore?.addressedConstraints ?? []);
-  const stackCompat = stackWithIds(primary, modes);
+  const stackCompat = layersIds(primary, modes);
 
   // 1. For each active constraint NOT already addressed by primary,
   //    add the top-scored mode that addresses it.
@@ -1292,7 +1292,7 @@ function buildSemanticStack(
     }
   }
 
-  // 2. If room remains, fill from stackWith compatibility with high semantic score.
+  // 2. If room remains, fill from layers compatibility with high semantic score.
   if (supporting.length < 2) {
     for (const r of ranked) {
       if (supporting.length >= 2) break;
@@ -1305,7 +1305,7 @@ function buildSemanticStack(
       }
       supporting.push(r.mode);
       used.add(r.mode.id);
-      stackReasons.push(`${r.mode.mode} is stackWith-compatible with strong semantic score (${r.score})`);
+      stackReasons.push(`${r.mode.mode} is layers-compatible with strong semantic score (${r.score})`);
     }
   }
 
@@ -1415,7 +1415,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   }
 
   // STEP 5: build stack. Constraints not covered by primary come first,
-  // then stackWith compatibility, then role diversity.
+  // then layers compatibility, then role diversity.
   const { supporting, team, stackReasons } = buildSemanticStack(
     primaryMode,
     modes,

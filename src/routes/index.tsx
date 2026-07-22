@@ -185,6 +185,54 @@ function HomePage() {
 
 /* ---------- Quick View ---------- */
 
+function StackLayersIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 3 2.5 8 12 13l9.5-5L12 3Z" />
+      <path d="M2.5 12 12 17l9.5-5" opacity="0.75" />
+      <path d="M2.5 16 12 21l9.5-5" opacity="0.5" />
+    </svg>
+  );
+}
+
+function DecorativeHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h3
+      className="text-center text-primary tracking-[0.35em] uppercase glow-text"
+      style={{
+        fontFamily: '"Cormorant Garamond", "Times New Roman", serif',
+        fontWeight: 600,
+        fontStyle: "italic",
+        fontSize: "1.75rem",
+        letterSpacing: "0.2em",
+      }}
+    >
+      {children}
+    </h3>
+  );
+}
+
+function StackDivider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 py-1" aria-hidden={false}>
+      <span className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-border" />
+      <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-muted-foreground font-sans">
+        {label}
+      </span>
+      <span className="h-px flex-1 bg-gradient-to-l from-transparent via-border to-border" />
+    </div>
+  );
+}
+
 function QuickView({ rec, onSave }: { rec: Recommendation; onSave: () => void }) {
   const combinedStack = [rec.primary.mode, ...rec.supporting.map((s) => s.mode)].join(" + ");
   return (
@@ -194,19 +242,49 @@ function QuickView({ rec, onSave }: { rec: Recommendation; onSave: () => void })
         <p className="text-sm text-foreground leading-relaxed">{rec.recommendedAction}</p>
       </div>
 
-      <div className="hud-panel hud-corner p-4 space-y-3 border-primary/40">
-        <SectionLabel>PRIMARY MODE</SectionLabel>
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h3 className="mono text-xl text-foreground">{rec.primary.mode}</h3>
-            <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-              <CategoryTag category={rec.primary.category} />
+      <div className="hud-panel hud-corner p-5 space-y-4 border-primary/40">
+        <div className="space-y-2">
+          <DecorativeHeading>Core</DecorativeHeading>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h4 className="mono text-xl text-foreground">{rec.primary.mode}</h4>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <CategoryTag category={rec.primary.category} />
+                <IntensityPill intensity={rec.primary.intensity} />
+              </div>
             </div>
+            <CopyButton value={rec.primary.fullPrompt} label="Copy Primary Prompt" />
           </div>
-          <CopyButton value={rec.primary.fullPrompt} label="Copy Primary Prompt" />
         </div>
-        <IntensityRow intensity={rec.primary.intensity} />
-        <ConfidenceRow label="Primary Mode Confidence" value={rec.primaryConfidence} />
+
+        <StackDivider label="Stack With" />
+
+        <div className="space-y-3">
+          <DecorativeHeading>Layers</DecorativeHeading>
+          {rec.supporting.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center italic">
+              No supporting layers recommended.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {rec.supporting.map((m) => (
+                <li
+                  key={m.id}
+                  className="flex items-center gap-3 rounded-sm border border-border/60 bg-muted/20 px-3 py-2"
+                >
+                  <StackLayersIcon className="h-5 w-5 text-primary flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <div className="mono text-sm text-foreground truncate">{m.mode}</div>
+                    <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                      <CategoryTag category={m.category} />
+                    </div>
+                  </div>
+                  <CopyButton value={m.fullPrompt} label="Prompt" />
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
 
       <div className="hud-panel p-4 space-y-3">

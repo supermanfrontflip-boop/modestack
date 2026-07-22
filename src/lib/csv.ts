@@ -13,7 +13,7 @@ const COLUMNS = [
   "integrityChecks",
   "bestFor",
   "avoidWhen",
-  "stackWith",
+  "layers",
   "attributes",
   "exitPhrase",
   "intensity",

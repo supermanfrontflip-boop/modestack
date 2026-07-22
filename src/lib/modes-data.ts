@@ -42,7 +42,7 @@ export function normalizeMode(m: Partial<Mode> & { id: string; mode: string }): 
     integrityChecks: m.integrityChecks ?? "",
     bestFor: m.bestFor ?? "",
     avoidWhen: m.avoidWhen ?? "",
-    layers: m.layers ?? "",
+    layers: m.layers ?? (m as unknown as { stackWith?: string }).stackWith ?? "",
     attributes: m.attributes ?? "",
     exitPhrase: m.exitPhrase ?? `Exit ${m.mode}.`,
     intensity: (m.intensity as Intensity) ?? "Medium",

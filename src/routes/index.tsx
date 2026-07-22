@@ -639,7 +639,7 @@ function ModeCard({
         <div className="grid grid-cols-1 gap-1 pt-1 text-xs">
           <Row k="Best for" v={mode.bestFor} />
           <Row k="Avoid when" v={mode.avoidWhen} />
-          <Row k="Stack with" v={mode.stackWith} />
+          <Row k="Stack with" v={mode.layers} />
           <Row k="Exit" v={mode.exitPhrase} mono />
         </div>
       )}

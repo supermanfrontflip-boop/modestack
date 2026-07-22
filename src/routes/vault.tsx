@@ -221,7 +221,7 @@ function VaultPage() {
               <div className="grid grid-cols-1 gap-1.5 text-xs">
                 <Row k="Best for" v={m.bestFor} />
                 <Row k="Avoid when" v={m.avoidWhen} />
-                <Row k="Stack with" v={m.stackWith} />
+                <Row k="Stack with" v={m.layers} />
                 <Row k="Exit" v={m.exitPhrase} mono />
                 <Row k="Example" v={m.exampleUse} />
               </div>

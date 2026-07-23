@@ -100,12 +100,17 @@ const ROLE_ALIAS: Record<string, CognitiveRole> = {
   analysis: "perspective",
   perspective: "perspective",
   creative: "perspective",
+  creativity: "perspective",
   risk: "risk",
+  verification: "risk",
   boundary: "risk",
   execution: "execution",
   output_control: "execution",
   quality_control: "execution",
   optimization: "execution",
+  strategy: "execution",
+  operations: "execution",
+  communication: "execution",
   tone_control: "execution",
   teaching: "execution",
 };
@@ -125,6 +130,79 @@ const ROLE_LABEL: Record<CognitiveRole, string> = {
   execution: "improves execution quality",
   risk: "improves risk detection and consistency",
 };
+
+// ---- Functional roles (drive CORE vs LAYERS composition) ----
+// The mode's `role` field is a functional signal about WHAT it contributes.
+// CORE should be a task-performing role. Output-control / verification roles
+// should normally be layers, not core, unless the task itself is verification.
+
+export type FunctionalRole =
+  | "execution"
+  | "optimization"
+  | "analysis"
+  | "output_control"
+  | "verification"
+  | "strategy"
+  | "operations"
+  | "communication"
+  | "creativity"
+  | "teaching";
+
+const FN_ROLE_ALIAS: Record<string, FunctionalRole> = {
+  execution: "execution",
+  optimization: "optimization",
+  analysis: "analysis",
+  perspective: "analysis",
+  output_control: "output_control",
+  quality_control: "output_control",
+  tone_control: "output_control",
+  verification: "verification",
+  risk: "verification",
+  boundary: "communication",
+  strategy: "strategy",
+  operations: "operations",
+  communication: "communication",
+  creative: "creativity",
+  creativity: "creativity",
+  teaching: "teaching",
+};
+
+/** Roles that can plausibly perform the main task and therefore be CORE. */
+const TASK_PERFORMING_ROLES: Set<FunctionalRole> = new Set([
+  "execution",
+  "optimization",
+  "analysis",
+  "strategy",
+  "operations",
+  "communication",
+  "creativity",
+  "teaching",
+]);
+
+/** Roles that finish, constrain, or verify — normally LAYERS, not CORE. */
+const CONSTRAINT_ROLES: Set<FunctionalRole> = new Set(["output_control", "verification"]);
+
+/** Heuristic fallback when mode.role is missing/unknown. */
+function inferFunctionalRoleFallback(mode: Mode): FunctionalRole {
+  const id = mode.id.toLowerCase();
+  const name = (mode.mode || "").toLowerCase();
+  if (/systems?[- ]?architect|architect/.test(id) || /systems? architect/.test(name)) return "optimization";
+  if (/verbatim|quotation|citation|literal/.test(id + " " + name)) return "output_control";
+  if (/verif|fact.?check|audit/.test(id + " " + name)) return "verification";
+  if (/legal.?research|research/.test(id + " " + name)) return "execution";
+  if (/curator|clear|diplomat|glove/.test(id)) return "output_control";
+  if (/shadow/.test(id)) return "verification";
+  if (/owl|alien|raven/.test(id)) return "analysis";
+  if (/captain|whaler|apex|hawk/.test(id)) return "execution";
+  return "execution";
+}
+
+export function functionalRole(mode: Mode): FunctionalRole {
+  const raw = (mode.role || "").trim().toLowerCase();
+  if (raw && FN_ROLE_ALIAS[raw]) return FN_ROLE_ALIAS[raw];
+  return inferFunctionalRoleFallback(mode);
+}
+
 
 // ---- Situation Type registry ----
 // Each type has signal keywords plus a preferred primary mode id and

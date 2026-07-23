@@ -15,6 +15,7 @@ const COLUMNS = [
   "avoidWhen",
   "layers",
   "attributes",
+  "role",
   "exitPhrase",
   "intensity",
   "exampleUse",

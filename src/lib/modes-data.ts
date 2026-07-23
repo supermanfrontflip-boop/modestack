@@ -1,5 +1,13 @@
 export type Intensity = "Low" | "Medium" | "High" | "Extreme";
 
+/**
+ * Semantic role used by the recommender to build well-balanced stacks.
+ * Common values: "analysis", "execution", "output_control", "optimization",
+ * "perspective", "risk", "creative", "quality_control", "tone_control",
+ * "boundary", "teaching". Free-form string so users can add their own.
+ */
+export type ModeRole = string;
+
 export interface Mode {
   id: string;
   mode: string;
@@ -20,6 +28,12 @@ export interface Mode {
   layers: string;
   /** Future modifier system. Free-form for now; not yet used by the router. */
   attributes?: string;
+  /**
+   * Semantic role the recommender uses to build stacks (e.g. "analysis",
+   * "execution", "output_control", "optimization"). Optional for backward
+   * compatibility with older stored/imported modes.
+   */
+  role?: ModeRole;
   exitPhrase: string;
   intensity: Intensity;
   exampleUse: string;
@@ -44,6 +58,7 @@ export function normalizeMode(m: Partial<Mode> & { id: string; mode: string }): 
     avoidWhen: m.avoidWhen ?? "",
     layers: m.layers ?? (m as unknown as { stackWith?: string }).stackWith ?? "",
     attributes: m.attributes ?? "",
+    role: m.role ?? "",
     exitPhrase: m.exitPhrase ?? `Exit ${m.mode}.`,
     intensity: (m.intensity as Intensity) ?? "Medium",
     exampleUse: m.exampleUse ?? "",

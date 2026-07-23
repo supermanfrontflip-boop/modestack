@@ -263,7 +263,7 @@ function QuickView({ rec, onSave }: { rec: Recommendation; onSave: () => void })
           <DecorativeHeading>Layers</DecorativeHeading>
           {rec.supporting.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center italic">
-              No supporting layers recommended.
+              No additional layers recommended.
             </p>
           ) : (
             <ul className="space-y-2">

@@ -138,6 +138,13 @@ export function ModeEditorDialog({ open, onOpenChange, initial, onSave }: Props)
           <Field label="Stack With">
             <Input value={form.layers} onChange={(e) => update("layers", e.target.value)} placeholder="Owl Mode, Clear Mode" />
           </Field>
+          <Field label="Role (recommender)">
+            <Input
+              value={form.role ?? ""}
+              onChange={(e) => update("role", e.target.value)}
+              placeholder="e.g. analysis, execution, output_control, optimization"
+            />
+          </Field>
           <Field label="Attributes (future modifiers)">
             <Textarea
               rows={2}

@@ -253,7 +253,7 @@ function QuickView({ rec, onSave }: { rec: Recommendation; onSave: () => void })
                 <IntensityPill intensity={rec.primary.intensity} />
               </div>
             </div>
-            <CopyButton value={rec.primary.fullPrompt} label="Copy Primary Prompt" />
+            <CopyButton value={rec.primary.fullPrompt} label="Copy Core Prompt" />
           </div>
         </div>
 
@@ -263,7 +263,7 @@ function QuickView({ rec, onSave }: { rec: Recommendation; onSave: () => void })
           <DecorativeHeading>Layers</DecorativeHeading>
           {rec.supporting.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center italic">
-              No supporting layers recommended.
+              No additional layers recommended.
             </p>
           ) : (
             <ul className="space-y-2">
@@ -360,7 +360,7 @@ function DetailedView({ rec, onSave }: { rec: Recommendation; onSave: () => void
 
       <div className="hud-panel p-4 space-y-2">
         <SectionLabel>CONFIDENCE</SectionLabel>
-        <ConfidenceRow label="Primary Mode Confidence" value={rec.primaryConfidence} />
+        <ConfidenceRow label="Core Mode Confidence" value={rec.primaryConfidence} />
         <ConfidenceRow label="Combined Stack Confidence" value={rec.stackConfidence} />
         <ConfidenceRow label="Stage Confidence" value={rec.stageConfidence} />
       </div>
@@ -392,11 +392,11 @@ function DetailedView({ rec, onSave }: { rec: Recommendation; onSave: () => void
         </div>
       )}
 
-      <ModeCard label="PRIMARY MODE" mode={rec.primary} accent="primary" />
+      <ModeCard label="CORE MODE" mode={rec.primary} accent="primary" />
 
       {rec.supporting.length > 0 && (
         <div className="space-y-2">
-          <SectionLabel>SUPPORTING MODES</SectionLabel>
+          <SectionLabel>LAYERS</SectionLabel>
           <div className="space-y-2">
             {rec.supporting.map((m) => (
               <ModeCard key={m.id} mode={m} compact />
@@ -404,6 +404,7 @@ function DetailedView({ rec, onSave }: { rec: Recommendation; onSave: () => void
           </div>
         </div>
       )}
+
 
       <div className="hud-panel p-4 space-y-2">
         <SectionLabel>REASONING</SectionLabel>
@@ -452,7 +453,7 @@ function DetailedView({ rec, onSave }: { rec: Recommendation; onSave: () => void
             <li key={member.mode.id} className="text-sm text-foreground/90 leading-relaxed">
               <span className="mono text-primary">{member.mode.mode}</span>{" "}
               <span className="text-[10px] mono tracking-widest text-muted-foreground">
-                [{i === 0 ? "PRIMARY" : "SUPPORT"} · {ROLE_LABEL[member.role].toUpperCase()}]
+                [{i === 0 ? "CORE" : "LAYER"} · {ROLE_LABEL[member.role].toUpperCase()}]
               </span>
               <div className="text-xs text-foreground/80 mt-0.5">{member.contribution}.</div>
             </li>

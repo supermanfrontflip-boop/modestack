@@ -100,12 +100,17 @@ const ROLE_ALIAS: Record<string, CognitiveRole> = {
   analysis: "perspective",
   perspective: "perspective",
   creative: "perspective",
+  creativity: "perspective",
   risk: "risk",
+  verification: "risk",
   boundary: "risk",
   execution: "execution",
   output_control: "execution",
   quality_control: "execution",
   optimization: "execution",
+  strategy: "execution",
+  operations: "execution",
+  communication: "execution",
   tone_control: "execution",
   teaching: "execution",
 };
@@ -125,6 +130,79 @@ const ROLE_LABEL: Record<CognitiveRole, string> = {
   execution: "improves execution quality",
   risk: "improves risk detection and consistency",
 };
+
+// ---- Functional roles (drive CORE vs LAYERS composition) ----
+// The mode's `role` field is a functional signal about WHAT it contributes.
+// CORE should be a task-performing role. Output-control / verification roles
+// should normally be layers, not core, unless the task itself is verification.
+
+export type FunctionalRole =
+  | "execution"
+  | "optimization"
+  | "analysis"
+  | "output_control"
+  | "verification"
+  | "strategy"
+  | "operations"
+  | "communication"
+  | "creativity"
+  | "teaching";
+
+const FN_ROLE_ALIAS: Record<string, FunctionalRole> = {
+  execution: "execution",
+  optimization: "optimization",
+  analysis: "analysis",
+  perspective: "analysis",
+  output_control: "output_control",
+  quality_control: "output_control",
+  tone_control: "output_control",
+  verification: "verification",
+  risk: "verification",
+  boundary: "communication",
+  strategy: "strategy",
+  operations: "operations",
+  communication: "communication",
+  creative: "creativity",
+  creativity: "creativity",
+  teaching: "teaching",
+};
+
+/** Roles that can plausibly perform the main task and therefore be CORE. */
+const TASK_PERFORMING_ROLES: Set<FunctionalRole> = new Set([
+  "execution",
+  "optimization",
+  "analysis",
+  "strategy",
+  "operations",
+  "communication",
+  "creativity",
+  "teaching",
+]);
+
+/** Roles that finish, constrain, or verify — normally LAYERS, not CORE. */
+const CONSTRAINT_ROLES: Set<FunctionalRole> = new Set(["output_control", "verification"]);
+
+/** Heuristic fallback when mode.role is missing/unknown. */
+function inferFunctionalRoleFallback(mode: Mode): FunctionalRole {
+  const id = mode.id.toLowerCase();
+  const name = (mode.mode || "").toLowerCase();
+  if (/systems?[- ]?architect|architect/.test(id) || /systems? architect/.test(name)) return "optimization";
+  if (/verbatim|quotation|citation|literal/.test(id + " " + name)) return "output_control";
+  if (/verif|fact.?check|audit/.test(id + " " + name)) return "verification";
+  if (/legal.?research|research/.test(id + " " + name)) return "execution";
+  if (/curator|clear|diplomat|glove/.test(id)) return "output_control";
+  if (/shadow/.test(id)) return "verification";
+  if (/owl|alien|raven/.test(id)) return "analysis";
+  if (/captain|whaler|apex|hawk/.test(id)) return "execution";
+  return "execution";
+}
+
+export function functionalRole(mode: Mode): FunctionalRole {
+  const raw = (mode.role || "").trim().toLowerCase();
+  if (raw && FN_ROLE_ALIAS[raw]) return FN_ROLE_ALIAS[raw];
+  return inferFunctionalRoleFallback(mode);
+}
+
 
 // ---- Situation Type registry ----
 // Each type has signal keywords plus a preferred primary mode id and
@@ -1263,6 +1341,34 @@ function semanticRank(
   return results;
 }
 
+// ---- Systems-Architect CORE promotion ----
+// Whole-workflow / reusable-system language should make an optimization-role mode
+// the CORE, not a layer. Example: "turn my entire litigation workflow into a
+// reusable system for research, evidence, drafting, filing, deadlines, follow-up".
+
+const WORKFLOW_SYSTEM_RX =
+  /\b(turn (my|our|the) (entire |whole |complete )?[\w\s]{0,30}?(process|workflow|practice|business|operation|litigation|firm|shop|studio) into (a |an )?(reusable |repeatable |standardized )?(system|workflow|process|framework|machine|engine)|reusable (system|workflow|process|framework) for|systemati[sz]e (my|our|the)|convert (my|our|the) [\w\s]{0,30}? into (a |an )?(system|process|workflow)|design (a )?(reusable |repeatable |scalable )?(system|workflow|process) (for|around|to)|standardi[sz]e (my|our) (whole |entire )?(workflow|process|practice)|make (my|our) (whole |entire )?(workflow|business|practice) (reusable|repeatable))\b/;
+
+function detectSystemsArchitectCore(text: string): boolean {
+  return WORKFLOW_SYSTEM_RX.test(text);
+}
+
+function findOptimizationCore(modes: Mode[], avoidIds: Set<string>): Mode | null {
+  const named = modes.find(
+    (m) => !avoidIds.has(m.id) && /systems?\s*architect/i.test(m.mode),
+  );
+  if (named) return named;
+  const byRole = modes.find(
+    (m) => !avoidIds.has(m.id) && (m.role || "").toLowerCase() === "optimization",
+  );
+  if (byRole) return byRole;
+  return modes.find((m) => !avoidIds.has(m.id) && /architect/i.test(m.mode)) ?? null;
+}
+
+
+
+
+
 /** layers is stored as free-form prose; parse mode names/ids from it */
 function layersIds(primary: Mode, modes: Mode[]): Set<string> {
   const raw = (primary.layers || "").toLowerCase();
@@ -1279,25 +1385,39 @@ function layersIds(primary: Mode, modes: Mode[]): Set<string> {
   return ids;
 }
 
-/** Build stack: constraint-coverage first, then layers compatibility, then role diversity. */
+/** Build stack: constraint-coverage first, then layers compatibility, then role diversity.
+ *  Up to 3 layers, each contributing a distinct functional role from CORE and each other
+ *  unless a constraint forces a duplicate role. */
 function buildSemanticStack(
   primary: Mode,
   modes: Mode[],
   ranked: SemanticScore[],
   constraints: ConstraintSignal[],
   avoidIds: Set<string>,
-): { supporting: Mode[]; team: TeamMember[]; stackReasons: string[] } {
+  maxLayers = 3,
+): { supporting: Mode[]; team: TeamMember[]; stackReasons: string[]; layerCoverage: Record<string, string[]> } {
   const used = new Set<string>([primary.id]);
   const supporting: Mode[] = [];
   const stackReasons: string[] = [];
+  const layerCoverage: Record<string, string[]> = {};
   const primaryScore = ranked.find((r) => r.mode.id === primary.id);
   const primaryAddressed = new Set(primaryScore?.addressedConstraints ?? []);
   const stackCompat = layersIds(primary, modes);
+  const primaryFn = functionalRole(primary);
+  const usedFnRoles = new Set<FunctionalRole>([primaryFn]);
+
+  const addLayer = (m: Mode, reason: string, covers: string[] = []) => {
+    supporting.push(m);
+    used.add(m.id);
+    usedFnRoles.add(functionalRole(m));
+    stackReasons.push(reason);
+    layerCoverage[m.id] = covers;
+  };
 
   // 1. For each active constraint NOT already addressed by primary,
-  //    add the top-scored mode that addresses it.
+  //    add the top-scored mode that addresses it. Constraints override role diversity.
   for (const c of constraints) {
-    if (supporting.length >= 2) break;
+    if (supporting.length >= maxLayers) break;
     if (primaryAddressed.has(c.key)) continue;
     const cand = ranked.find(
       (r) =>
@@ -1307,40 +1427,43 @@ function buildSemanticStack(
         r.score > 0,
     );
     if (cand) {
-      supporting.push(cand.mode);
-      used.add(cand.mode.id);
-      stackReasons.push(`${cand.mode.mode} addresses ${c.label} (score ${cand.score})`);
+      addLayer(
+        cand.mode,
+        `${cand.mode.mode} addresses ${c.label} [${functionalRole(cand.mode)}] (score ${cand.score})`,
+        [c.label],
+      );
     }
   }
 
-  // 2. If room remains, fill from layers compatibility with high semantic score.
-  if (supporting.length < 2) {
+  // 2. Fill from layers-compatibility list with strong semantic score AND a distinct
+  //    functional role from CORE and already-picked layers.
+  if (supporting.length < maxLayers) {
     for (const r of ranked) {
-      if (supporting.length >= 2) break;
+      if (supporting.length >= maxLayers) break;
       if (used.has(r.mode.id) || avoidIds.has(r.mode.id)) continue;
       if (!stackCompat.has(r.mode.id)) continue;
       if (r.score < 4) continue;
-      if (roleOf(r.mode).role === roleOf(primary).role && supporting.every((s) => roleOf(s).role === roleOf(primary).role)) {
-        // avoid stacking three of the same role
-        continue;
-      }
-      supporting.push(r.mode);
-      used.add(r.mode.id);
-      stackReasons.push(`${r.mode.mode} is layers-compatible with strong semantic score (${r.score})`);
+      const fn = functionalRole(r.mode);
+      if (usedFnRoles.has(fn)) continue;
+      addLayer(
+        r.mode,
+        `${r.mode.mode} is layers-compatible, distinct role [${fn}], semantic score ${r.score}`,
+      );
     }
   }
 
-  // 3. Final fallback: role diversity from top scorers with score>threshold.
-  if (supporting.length === 0) {
-    const primaryRole = roleOf(primary).role;
+  // 3. Fill remaining slots by functional-role diversity from top scorers.
+  if (supporting.length < maxLayers) {
     for (const r of ranked) {
-      if (supporting.length >= 1) break;
+      if (supporting.length >= maxLayers) break;
       if (used.has(r.mode.id) || avoidIds.has(r.mode.id)) continue;
       if (r.score < 6) continue;
-      if (roleOf(r.mode).role === primaryRole) continue;
-      supporting.push(r.mode);
-      used.add(r.mode.id);
-      stackReasons.push(`${r.mode.mode} adds a distinct cognitive role (${roleOf(r.mode).role})`);
+      const fn = functionalRole(r.mode);
+      if (usedFnRoles.has(fn)) continue;
+      addLayer(
+        r.mode,
+        `${r.mode.mode} adds a distinct functional role [${fn}] (score ${r.score})`,
+      );
     }
   }
 
@@ -1352,8 +1475,9 @@ function buildSemanticStack(
       contribution: roleOf(m).contribution,
     })),
   ];
-  return { supporting, team, stackReasons };
+  return { supporting, team, stackReasons, layerCoverage };
 }
+
 
 // ---- Main ----
 
@@ -1390,22 +1514,56 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     }
   }
 
-  // STEP 4: pick primary. Semantic score wins when it's meaningful; category /
-  // situation-type preferred ids act as tiebreaker only.
+  // STEP 4: pick CORE. Priority:
+  //   (a) Systems Architect promotion when the user asks to design whole workflows/systems.
+  //   (b) Semantic top — but if that mode's functional role is a CONSTRAINT role
+  //       (output_control / verification), swap in the best task-performing candidate
+  //       and let the constraint mode become a LAYER.
+  //   (c) Category preferred → situation-type preferred → keyword fallback.
   let primaryMode: Mode | null = null;
   let typeReason = "";
   let primarySource = "semantic";
+
+  // (a) Systems-Architect / workflow-system promotion.
+  const systemsCoreSignal = detectSystemsArchitectCore(text);
+  if (systemsCoreSignal) {
+    const arch = findOptimizationCore(modes, avoidIds);
+    if (arch) {
+      primaryMode = arch;
+      primarySource = "systems-architect-workflow";
+      typeReason =
+        "Whole-workflow / reusable-system language detected — Systems Architect (optimization role) promoted to CORE.";
+    }
+  }
 
   const semanticThreshold = 6;
   const dominantConstraint = constraints.length > 0 &&
     semanticTop &&
     semanticTop.addressedConstraints.length > 0;
 
-  if (dominantConstraint || (semanticTop && semanticTop.score >= semanticThreshold)) {
-    primaryMode = semanticTop!.mode;
+  if (!primaryMode && (dominantConstraint || (semanticTop && semanticTop.score >= semanticThreshold))) {
+    let chosen = semanticTop!.mode;
     typeReason = dominantConstraint
-      ? `The situation contains explicit constraint(s) [${constraints.map((c) => c.label).join("; ")}], and ${primaryMode.mode}'s metadata directly addresses them.`
+      ? `The situation contains explicit constraint(s) [${constraints.map((c) => c.label).join("; ")}], and ${chosen.mode}'s metadata directly addresses them.`
       : `Selected from semantic scoring across category/purpose/bestFor/triggers (score ${semanticTop!.score}).`;
+
+    // Guard: don't let a pure output-constraint or verification mode become CORE
+    // when a task-performing mode is also a strong fit. Legal Research > Verbatim.
+    const chosenFn = functionalRole(chosen);
+    if (CONSTRAINT_ROLES.has(chosenFn)) {
+      const alt = rankedAllowed.find((r) => {
+        if (r.mode.id === chosen.id) return false;
+        if (!TASK_PERFORMING_ROLES.has(functionalRole(r.mode))) return false;
+        const addressesConstraint = r.addressedConstraints.length > 0;
+        return addressesConstraint || r.score >= Math.max(semanticThreshold, (semanticTop!.score) - 15);
+      });
+      if (alt) {
+        typeReason = `${alt.mode.mode} performs the task (${functionalRole(alt.mode)}); ${chosen.mode} (${chosenFn}) is a finishing constraint and belongs in LAYERS. Semantic scores: core ${alt.score} vs demoted ${semanticTop!.score}.`;
+        chosen = alt.mode;
+        primarySource = "task-performing-swap";
+      }
+    }
+    primaryMode = chosen;
   }
 
   // Fallback: category preferred, then situation-type preferred, then top keyword.
@@ -1416,7 +1574,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
       if (m) { primaryMode = m; primarySource = "category"; break; }
     }
     if (primaryMode) {
-      typeReason = `Category "${catSpec.name}" preferred primary — no dominant semantic or constraint signal.`;
+      typeReason = `Category "${catSpec.name}" preferred CORE — no dominant semantic or constraint signal.`;
     }
   }
   if (!primaryMode && primaryType) {
@@ -1435,15 +1593,17 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     if (!typeReason) typeReason = "No dominant signals — falling back to strongest keyword match.";
   }
 
-  // STEP 5: build stack. Constraints not covered by primary come first,
-  // then layers compatibility, then role diversity.
-  const { supporting, team, stackReasons } = buildSemanticStack(
+  // STEP 5: build LAYERS. Constraints not covered by CORE come first, then
+  // layers-compatibility, then functional-role diversity. Up to 3 layers.
+  const { supporting, team, stackReasons, layerCoverage } = buildSemanticStack(
     primaryMode,
     modes,
     ranked,
     constraints,
     avoidIds,
+    3,
   );
+
 
   const { avoid, isHighConfidence: avoidIsHighConfidence } = pickAvoid(
     primaryMode,
@@ -1599,23 +1759,64 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   ];
 
   // Development diagnostics — inspect with window.__lastRecommendationDebug
+  const primaryFnRole = functionalRole(primaryMode);
+  const primaryConstraintsCovered = (ranked.find((r) => r.mode.id === primaryMode!.id)?.addressedConstraints ?? []);
+  const candidateLayers = rankedAllowed
+    .filter((r) => r.mode.id !== primaryMode!.id)
+    .slice(0, 12)
+    .map((r) => ({
+      id: r.mode.id,
+      mode: r.mode.mode,
+      role: functionalRole(r.mode),
+      score: r.score,
+      addresses: r.addressedConstraints,
+      selected: supporting.some((s) => s.id === r.mode.id),
+      selectionReason: supporting.some((s) => s.id === r.mode.id)
+        ? (stackReasons.find((sr) => sr.startsWith(r.mode.mode)) ?? "selected")
+        : (functionalRole(r.mode) === primaryFnRole
+            ? "rejected: same functional role as CORE"
+            : r.score < 4
+              ? "rejected: semantic score below layer threshold"
+              : "not needed after higher-priority layers filled"),
+    }));
+
   if (typeof globalThis !== "undefined") {
     (globalThis as unknown as { __lastRecommendationDebug?: unknown }).__lastRecommendationDebug = {
       situation,
       constraints: constraintKeys,
       semanticTop10: rankedAllowed.slice(0, 10).map((r) => ({
-        id: r.mode.id, mode: r.mode.mode, score: r.score, addresses: r.addressedConstraints, reasons: r.reasons,
+        id: r.mode.id, mode: r.mode.mode, score: r.score,
+        role: functionalRole(r.mode),
+        addresses: r.addressedConstraints, reasons: r.reasons,
       })),
-      primary: { id: primaryMode.id, mode: primaryMode.mode, source: primarySource, semanticScore: primarySemanticScore },
-      supporting: supporting.map((s) => ({ id: s.id, mode: s.mode })),
+      core: {
+        id: primaryMode.id,
+        mode: primaryMode.mode,
+        role: primaryFnRole,
+        source: primarySource,
+        semanticScore: primarySemanticScore,
+        reasons: (ranked.find((r) => r.mode.id === primaryMode!.id)?.reasons ?? []),
+        requirementsCovered: primaryConstraintsCovered,
+      },
+      layers: supporting.map((s) => ({
+        id: s.id,
+        mode: s.mode,
+        role: functionalRole(s),
+        requirementsSupplied: layerCoverage[s.id] ?? [],
+      })),
+      candidateLayers,
       stackReasons,
       avoidIds: [...avoidIds],
       category: categoryName,
       situationType: displayTypeNames,
       stage,
       deliverable,
+      // legacy keys retained for older debuggers
+      primary: { id: primaryMode.id, mode: primaryMode.mode, source: primarySource, semanticScore: primarySemanticScore },
+      supporting: supporting.map((s) => ({ id: s.id, mode: s.mode })),
     };
   }
+
 
   bumpCounts([primaryMode.id, ...supporting.map((s) => s.id)]);
 
@@ -1723,19 +1924,22 @@ function buildCombinedPrompt(
   lines.push(`# Situation`);
   lines.push(situation.trim() || "(describe the situation here)");
   lines.push("");
-  lines.push(`# Primary: ${primary.mode}`);
+  lines.push(`# CORE: ${primary.mode}`);
   lines.push(primary.fullPrompt);
   if (supporting.length) {
     lines.push("");
-    lines.push(`# Stack`);
+    lines.push(`# STACK WITH`);
+    lines.push("");
+    lines.push(`## LAYERS`);
     for (const s of supporting) {
       lines.push(`- ${s.mode}: ${s.fullPrompt}`);
     }
   }
   lines.push("");
-  lines.push(`# Exit`);
+  lines.push(`# EXIT`);
   lines.push([primary, ...supporting].map((m) => m.exitPhrase).join(" "));
   return lines.join("\n");
 }
+
 
 export { ROLE_LABEL };

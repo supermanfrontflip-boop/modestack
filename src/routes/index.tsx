@@ -392,11 +392,11 @@ function DetailedView({ rec, onSave }: { rec: Recommendation; onSave: () => void
         </div>
       )}
 
-      <ModeCard label="PRIMARY MODE" mode={rec.primary} accent="primary" />
+      <ModeCard label="CORE MODE" mode={rec.primary} accent="primary" />
 
       {rec.supporting.length > 0 && (
         <div className="space-y-2">
-          <SectionLabel>SUPPORTING MODES</SectionLabel>
+          <SectionLabel>LAYERS</SectionLabel>
           <div className="space-y-2">
             {rec.supporting.map((m) => (
               <ModeCard key={m.id} mode={m} compact />
@@ -404,6 +404,7 @@ function DetailedView({ rec, onSave }: { rec: Recommendation; onSave: () => void
           </div>
         </div>
       )}
+
 
       <div className="hud-panel p-4 space-y-2">
         <SectionLabel>REASONING</SectionLabel>

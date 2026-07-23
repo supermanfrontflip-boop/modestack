@@ -1341,6 +1341,33 @@ function semanticRank(
   return results;
 }
 
+// ---- Systems-Architect CORE promotion ----
+// Whole-workflow / reusable-system language should make an optimization-role mode
+// the CORE, not a layer. Example: "turn my entire litigation workflow into a
+// reusable system for research, evidence, drafting, filing, deadlines, follow-up".
+
+const WORKFLOW_SYSTEM_RX =
+  /\b(turn (my|our|the) (entire |whole |complete )?[\w\s]{0,30}?(process|workflow|practice|business|operation|litigation|firm|shop|studio) into (a |an )?(reusable |repeatable |standardized )?(system|workflow|process|framework|machine|engine)|reusable (system|workflow|process|framework) for|systemati[sz]e (my|our|the)|convert (my|our|the) [\w\s]{0,30}? into (a |an )?(system|process|workflow)|design (a )?(reusable |repeatable |scalable )?(system|workflow|process) (for|around|to)|standardi[sz]e (my|our) (whole |entire )?(workflow|process|practice)|make (my|our) (whole |entire )?(workflow|business|practice) (reusable|repeatable))\b/;
+
+function detectSystemsArchitectCore(text: string): boolean {
+  return WORKFLOW_SYSTEM_RX.test(text);
+}
+
+function findOptimizationCore(modes: Mode[], avoidIds: Set<string>): Mode | null {
+  const named = modes.find(
+    (m) => !avoidIds.has(m.id) && /systems?\s*architect/i.test(m.mode),
+  );
+  if (named) return named;
+  const byRole = modes.find(
+    (m) => !avoidIds.has(m.id) && (m.role || "").toLowerCase() === "optimization",
+  );
+  if (byRole) return byRole;
+  return modes.find((m) => !avoidIds.has(m.id) && /architect/i.test(m.mode)) ?? null;
+}
+
+function _endOfSituationDetectSection() {
+
+
 /** layers is stored as free-form prose; parse mode names/ids from it */
 function layersIds(primary: Mode, modes: Mode[]): Set<string> {
   const raw = (primary.layers || "").toLowerCase();

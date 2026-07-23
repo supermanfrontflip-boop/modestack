@@ -1924,19 +1924,22 @@ function buildCombinedPrompt(
   lines.push(`# Situation`);
   lines.push(situation.trim() || "(describe the situation here)");
   lines.push("");
-  lines.push(`# Primary: ${primary.mode}`);
+  lines.push(`# CORE: ${primary.mode}`);
   lines.push(primary.fullPrompt);
   if (supporting.length) {
     lines.push("");
-    lines.push(`# Stack`);
+    lines.push(`# STACK WITH`);
+    lines.push("");
+    lines.push(`## LAYERS`);
     for (const s of supporting) {
       lines.push(`- ${s.mode}: ${s.fullPrompt}`);
     }
   }
   lines.push("");
-  lines.push(`# Exit`);
+  lines.push(`# EXIT`);
   lines.push([primary, ...supporting].map((m) => m.exitPhrase).join(" "));
   return lines.join("\n");
 }
+
 
 export { ROLE_LABEL };

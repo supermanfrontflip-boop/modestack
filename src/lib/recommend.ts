@@ -95,8 +95,29 @@ const ROLE_MAP: Record<string, RoleSpec> = {
   "platform-tutor": { role: "execution", contribution: "beginner-friendly, one-step-at-a-time device-specific guidance" },
 };
 
+/** Map user-defined role strings to the recommender's CognitiveRole buckets. */
+const ROLE_ALIAS: Record<string, CognitiveRole> = {
+  analysis: "perspective",
+  perspective: "perspective",
+  creative: "perspective",
+  risk: "risk",
+  boundary: "risk",
+  execution: "execution",
+  output_control: "execution",
+  quality_control: "execution",
+  optimization: "execution",
+  tone_control: "execution",
+  teaching: "execution",
+};
+
 function roleOf(mode: Mode): RoleSpec {
-  return ROLE_MAP[mode.id] ?? { role: "execution", contribution: mode.purpose.toLowerCase() };
+  const mapped = ROLE_MAP[mode.id];
+  if (mapped) return mapped;
+  const custom = (mode.role ?? "").trim().toLowerCase();
+  if (custom && ROLE_ALIAS[custom]) {
+    return { role: ROLE_ALIAS[custom], contribution: mode.purpose.toLowerCase() || custom };
+  }
+  return { role: "execution", contribution: mode.purpose.toLowerCase() };
 }
 
 const ROLE_LABEL: Record<CognitiveRole, string> = {

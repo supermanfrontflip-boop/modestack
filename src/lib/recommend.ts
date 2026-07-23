@@ -1365,7 +1365,8 @@ function findOptimizationCore(modes: Mode[], avoidIds: Set<string>): Mode | null
   return modes.find((m) => !avoidIds.has(m.id) && /architect/i.test(m.mode)) ?? null;
 }
 
-function _endOfSituationDetectSection() {
+
+
 
 
 /** layers is stored as free-form prose; parse mode names/ids from it */

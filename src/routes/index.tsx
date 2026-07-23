@@ -453,7 +453,7 @@ function DetailedView({ rec, onSave }: { rec: Recommendation; onSave: () => void
             <li key={member.mode.id} className="text-sm text-foreground/90 leading-relaxed">
               <span className="mono text-primary">{member.mode.mode}</span>{" "}
               <span className="text-[10px] mono tracking-widest text-muted-foreground">
-                [{i === 0 ? "PRIMARY" : "SUPPORT"} · {ROLE_LABEL[member.role].toUpperCase()}]
+                [{i === 0 ? "CORE" : "LAYER"} · {ROLE_LABEL[member.role].toUpperCase()}]
               </span>
               <div className="text-xs text-foreground/80 mt-0.5">{member.contribution}.</div>
             </li>

@@ -70,6 +70,7 @@ export function normalizeMode(m: Partial<Mode> & { id: string; mode: string }): 
 export const SEED_MODES: Mode[] = [
   {
     id: "owl",
+    role: "analysis",
     mode: "Owl Mode",
     category: "Analysis",
     purpose: "Deep, patient analysis with wide-angle perspective.",
@@ -85,6 +86,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "hawk",
+    role: "execution",
     mode: "Hawk Mode",
     category: "Focus",
     purpose: "Sharp, precise targeting of a single objective.",
@@ -100,6 +102,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "snail",
+    role: "execution",
     mode: "Snail Mode",
     category: "Pacing",
     purpose: "Deliberate, step-by-step pacing with no shortcuts.",
@@ -115,6 +118,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "alien",
+    role: "perspective",
     mode: "Alien Mode",
     category: "Creative",
     purpose: "Reframe the problem from an unfamiliar vantage point.",
@@ -130,6 +134,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "captain",
+    role: "execution",
     mode: "Captain Mode",
     category: "Leadership",
     purpose: "Decisive command voice that commits to a direction.",
@@ -145,6 +150,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "apex",
+    role: "quality_control",
     mode: "Apex Mode",
     category: "Performance",
     purpose: "Top-of-class execution with maximum standards.",
@@ -160,6 +166,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "shadow",
+    role: "risk",
     mode: "Shadow Mode",
     category: "Critique",
     purpose: "Skeptical adversary stress-testing for weaknesses, exploits, and hidden vulnerabilities.",
@@ -175,6 +182,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "architect",
+    role: "optimization",
     mode: "Architect Mode",
     category: "Design",
     purpose: "Large interconnected structures, foundations, and long-horizon scalability.",
@@ -190,6 +198,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "raven",
+    role: "creative",
     mode: "Raven Mode",
     category: "Creative",
     purpose: "Creative, associative thinking with symbolism, imagery, and emotional resonance.",
@@ -205,6 +214,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "curator",
+    role: "output_control",
     mode: "Curator Mode",
     category: "Refinement",
     purpose: "Elite selector that separates strong from weak and refines for clarity and elegance.",
@@ -220,6 +230,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "whaler",
+    role: "execution",
     mode: "Whaler Mode",
     category: "Sales",
     purpose: "Patient, high-stakes pursuit of large, high-value clients or deals.",
@@ -235,6 +246,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "wild-bird-seed",
+    role: "execution",
     mode: "Wild Bird Seed Mode",
     category: "Marketing",
     purpose: "Attraction-based lead generation that scatters value publicly and lets the right clients come.",
@@ -250,6 +262,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "clear",
+    role: "output_control",
     mode: "Clear Mode",
     category: "Communication",
     purpose: "Strip everything down to plain, unambiguous language.",
@@ -265,6 +278,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "glove",
+    role: "boundary",
     mode: "Glove Mode",
     category: "Boundary",
     purpose: "Firm, respectful boundary-holding without surrendering position or making admissions.",
@@ -287,6 +301,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "diplomat",
+    role: "tone_control",
     mode: "Diplomat Mode",
     category: "Communication",
     purpose: "Respectful, measured tone that de-escalates while keeping substance intact.",
@@ -302,6 +317,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "gomer-pyle",
+    role: "creative",
     mode: "Gomer Pyle Mode",
     category: "Creative",
     purpose: "Folksy, comedic, satirical voice for fiction, lyrics, and roast writing.",
@@ -317,6 +333,7 @@ export const SEED_MODES: Mode[] = [
   },
   {
     id: "platform-tutor",
+    role: "execution",
     mode: "Platform Tutor Mode",
     category: "Learning & Teaching",
     subcategory: "Device-Specific Instructions",

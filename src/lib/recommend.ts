@@ -1357,25 +1357,39 @@ function layersIds(primary: Mode, modes: Mode[]): Set<string> {
   return ids;
 }
 
-/** Build stack: constraint-coverage first, then layers compatibility, then role diversity. */
+/** Build stack: constraint-coverage first, then layers compatibility, then role diversity.
+ *  Up to 3 layers, each contributing a distinct functional role from CORE and each other
+ *  unless a constraint forces a duplicate role. */
 function buildSemanticStack(
   primary: Mode,
   modes: Mode[],
   ranked: SemanticScore[],
   constraints: ConstraintSignal[],
   avoidIds: Set<string>,
-): { supporting: Mode[]; team: TeamMember[]; stackReasons: string[] } {
+  maxLayers = 3,
+): { supporting: Mode[]; team: TeamMember[]; stackReasons: string[]; layerCoverage: Record<string, string[]> } {
   const used = new Set<string>([primary.id]);
   const supporting: Mode[] = [];
   const stackReasons: string[] = [];
+  const layerCoverage: Record<string, string[]> = {};
   const primaryScore = ranked.find((r) => r.mode.id === primary.id);
   const primaryAddressed = new Set(primaryScore?.addressedConstraints ?? []);
   const stackCompat = layersIds(primary, modes);
+  const primaryFn = functionalRole(primary);
+  const usedFnRoles = new Set<FunctionalRole>([primaryFn]);
+
+  const addLayer = (m: Mode, reason: string, covers: string[] = []) => {
+    supporting.push(m);
+    used.add(m.id);
+    usedFnRoles.add(functionalRole(m));
+    stackReasons.push(reason);
+    layerCoverage[m.id] = covers;
+  };
 
   // 1. For each active constraint NOT already addressed by primary,
-  //    add the top-scored mode that addresses it.
+  //    add the top-scored mode that addresses it. Constraints override role diversity.
   for (const c of constraints) {
-    if (supporting.length >= 2) break;
+    if (supporting.length >= maxLayers) break;
     if (primaryAddressed.has(c.key)) continue;
     const cand = ranked.find(
       (r) =>
@@ -1385,40 +1399,43 @@ function buildSemanticStack(
         r.score > 0,
     );
     if (cand) {
-      supporting.push(cand.mode);
-      used.add(cand.mode.id);
-      stackReasons.push(`${cand.mode.mode} addresses ${c.label} (score ${cand.score})`);
+      addLayer(
+        cand.mode,
+        `${cand.mode.mode} addresses ${c.label} [${functionalRole(cand.mode)}] (score ${cand.score})`,
+        [c.label],
+      );
     }
   }
 
-  // 2. If room remains, fill from layers compatibility with high semantic score.
-  if (supporting.length < 2) {
+  // 2. Fill from layers-compatibility list with strong semantic score AND a distinct
+  //    functional role from CORE and already-picked layers.
+  if (supporting.length < maxLayers) {
     for (const r of ranked) {
-      if (supporting.length >= 2) break;
+      if (supporting.length >= maxLayers) break;
       if (used.has(r.mode.id) || avoidIds.has(r.mode.id)) continue;
       if (!stackCompat.has(r.mode.id)) continue;
       if (r.score < 4) continue;
-      if (roleOf(r.mode).role === roleOf(primary).role && supporting.every((s) => roleOf(s).role === roleOf(primary).role)) {
-        // avoid stacking three of the same role
-        continue;
-      }
-      supporting.push(r.mode);
-      used.add(r.mode.id);
-      stackReasons.push(`${r.mode.mode} is layers-compatible with strong semantic score (${r.score})`);
+      const fn = functionalRole(r.mode);
+      if (usedFnRoles.has(fn)) continue;
+      addLayer(
+        r.mode,
+        `${r.mode.mode} is layers-compatible, distinct role [${fn}], semantic score ${r.score}`,
+      );
     }
   }
 
-  // 3. Final fallback: role diversity from top scorers with score>threshold.
-  if (supporting.length === 0) {
-    const primaryRole = roleOf(primary).role;
+  // 3. Fill remaining slots by functional-role diversity from top scorers.
+  if (supporting.length < maxLayers) {
     for (const r of ranked) {
-      if (supporting.length >= 1) break;
+      if (supporting.length >= maxLayers) break;
       if (used.has(r.mode.id) || avoidIds.has(r.mode.id)) continue;
       if (r.score < 6) continue;
-      if (roleOf(r.mode).role === primaryRole) continue;
-      supporting.push(r.mode);
-      used.add(r.mode.id);
-      stackReasons.push(`${r.mode.mode} adds a distinct cognitive role (${roleOf(r.mode).role})`);
+      const fn = functionalRole(r.mode);
+      if (usedFnRoles.has(fn)) continue;
+      addLayer(
+        r.mode,
+        `${r.mode.mode} adds a distinct functional role [${fn}] (score ${r.score})`,
+      );
     }
   }
 
@@ -1430,8 +1447,9 @@ function buildSemanticStack(
       contribution: roleOf(m).contribution,
     })),
   ];
-  return { supporting, team, stackReasons };
+  return { supporting, team, stackReasons, layerCoverage };
 }
+
 
 // ---- Main ----
 

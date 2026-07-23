@@ -1759,23 +1759,64 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   ];
 
   // Development diagnostics — inspect with window.__lastRecommendationDebug
+  const primaryFnRole = functionalRole(primaryMode);
+  const primaryConstraintsCovered = (ranked.find((r) => r.mode.id === primaryMode!.id)?.addressedConstraints ?? []);
+  const candidateLayers = rankedAllowed
+    .filter((r) => r.mode.id !== primaryMode!.id)
+    .slice(0, 12)
+    .map((r) => ({
+      id: r.mode.id,
+      mode: r.mode.mode,
+      role: functionalRole(r.mode),
+      score: r.score,
+      addresses: r.addressedConstraints,
+      selected: supporting.some((s) => s.id === r.mode.id),
+      selectionReason: supporting.some((s) => s.id === r.mode.id)
+        ? (stackReasons.find((sr) => sr.startsWith(r.mode.mode)) ?? "selected")
+        : (functionalRole(r.mode) === primaryFnRole
+            ? "rejected: same functional role as CORE"
+            : r.score < 4
+              ? "rejected: semantic score below layer threshold"
+              : "not needed after higher-priority layers filled"),
+    }));
+
   if (typeof globalThis !== "undefined") {
     (globalThis as unknown as { __lastRecommendationDebug?: unknown }).__lastRecommendationDebug = {
       situation,
       constraints: constraintKeys,
       semanticTop10: rankedAllowed.slice(0, 10).map((r) => ({
-        id: r.mode.id, mode: r.mode.mode, score: r.score, addresses: r.addressedConstraints, reasons: r.reasons,
+        id: r.mode.id, mode: r.mode.mode, score: r.score,
+        role: functionalRole(r.mode),
+        addresses: r.addressedConstraints, reasons: r.reasons,
       })),
-      primary: { id: primaryMode.id, mode: primaryMode.mode, source: primarySource, semanticScore: primarySemanticScore },
-      supporting: supporting.map((s) => ({ id: s.id, mode: s.mode })),
+      core: {
+        id: primaryMode.id,
+        mode: primaryMode.mode,
+        role: primaryFnRole,
+        source: primarySource,
+        semanticScore: primarySemanticScore,
+        reasons: (ranked.find((r) => r.mode.id === primaryMode!.id)?.reasons ?? []),
+        requirementsCovered: primaryConstraintsCovered,
+      },
+      layers: supporting.map((s) => ({
+        id: s.id,
+        mode: s.mode,
+        role: functionalRole(s),
+        requirementsSupplied: layerCoverage[s.id] ?? [],
+      })),
+      candidateLayers,
       stackReasons,
       avoidIds: [...avoidIds],
       category: categoryName,
       situationType: displayTypeNames,
       stage,
       deliverable,
+      // legacy keys retained for older debuggers
+      primary: { id: primaryMode.id, mode: primaryMode.mode, source: primarySource, semanticScore: primarySemanticScore },
+      supporting: supporting.map((s) => ({ id: s.id, mode: s.mode })),
     };
   }
+
 
   bumpCounts([primaryMode.id, ...supporting.map((s) => s.id)]);
 

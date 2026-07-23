@@ -253,7 +253,7 @@ function QuickView({ rec, onSave }: { rec: Recommendation; onSave: () => void })
                 <IntensityPill intensity={rec.primary.intensity} />
               </div>
             </div>
-            <CopyButton value={rec.primary.fullPrompt} label="Copy Primary Prompt" />
+            <CopyButton value={rec.primary.fullPrompt} label="Copy Core Prompt" />
           </div>
         </div>
 

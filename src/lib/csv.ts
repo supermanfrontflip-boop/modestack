@@ -138,6 +138,7 @@ export function csvToModes(text: string): ImportResult {
       avoidWhen: get("avoidWhen"),
       layers: get("layers"),
       attributes: get("attributes"),
+      role: get("role"),
       exitPhrase: get("exitPhrase") || `Exit ${name}.`,
       intensity,
       exampleUse: get("exampleUse"),

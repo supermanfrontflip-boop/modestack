@@ -1486,22 +1486,56 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     }
   }
 
-  // STEP 4: pick primary. Semantic score wins when it's meaningful; category /
-  // situation-type preferred ids act as tiebreaker only.
+  // STEP 4: pick CORE. Priority:
+  //   (a) Systems Architect promotion when the user asks to design whole workflows/systems.
+  //   (b) Semantic top — but if that mode's functional role is a CONSTRAINT role
+  //       (output_control / verification), swap in the best task-performing candidate
+  //       and let the constraint mode become a LAYER.
+  //   (c) Category preferred → situation-type preferred → keyword fallback.
   let primaryMode: Mode | null = null;
   let typeReason = "";
   let primarySource = "semantic";
+
+  // (a) Systems-Architect / workflow-system promotion.
+  const systemsCoreSignal = detectSystemsArchitectCore(text);
+  if (systemsCoreSignal) {
+    const arch = findOptimizationCore(modes, avoidIds);
+    if (arch) {
+      primaryMode = arch;
+      primarySource = "systems-architect-workflow";
+      typeReason =
+        "Whole-workflow / reusable-system language detected — Systems Architect (optimization role) promoted to CORE.";
+    }
+  }
 
   const semanticThreshold = 6;
   const dominantConstraint = constraints.length > 0 &&
     semanticTop &&
     semanticTop.addressedConstraints.length > 0;
 
-  if (dominantConstraint || (semanticTop && semanticTop.score >= semanticThreshold)) {
-    primaryMode = semanticTop!.mode;
+  if (!primaryMode && (dominantConstraint || (semanticTop && semanticTop.score >= semanticThreshold))) {
+    let chosen = semanticTop!.mode;
     typeReason = dominantConstraint
-      ? `The situation contains explicit constraint(s) [${constraints.map((c) => c.label).join("; ")}], and ${primaryMode.mode}'s metadata directly addresses them.`
+      ? `The situation contains explicit constraint(s) [${constraints.map((c) => c.label).join("; ")}], and ${chosen.mode}'s metadata directly addresses them.`
       : `Selected from semantic scoring across category/purpose/bestFor/triggers (score ${semanticTop!.score}).`;
+
+    // Guard: don't let a pure output-constraint or verification mode become CORE
+    // when a task-performing mode is also a strong fit. Legal Research > Verbatim.
+    const chosenFn = functionalRole(chosen);
+    if (CONSTRAINT_ROLES.has(chosenFn)) {
+      const alt = rankedAllowed.find((r) => {
+        if (r.mode.id === chosen.id) return false;
+        if (!TASK_PERFORMING_ROLES.has(functionalRole(r.mode))) return false;
+        const addressesConstraint = r.addressedConstraints.length > 0;
+        return addressesConstraint || r.score >= Math.max(semanticThreshold, (semanticTop!.score) - 15);
+      });
+      if (alt) {
+        typeReason = `${alt.mode.mode} performs the task (${functionalRole(alt.mode)}); ${chosen.mode} (${chosenFn}) is a finishing constraint and belongs in LAYERS. Semantic scores: core ${alt.score} vs demoted ${semanticTop!.score}.`;
+        chosen = alt.mode;
+        primarySource = "task-performing-swap";
+      }
+    }
+    primaryMode = chosen;
   }
 
   // Fallback: category preferred, then situation-type preferred, then top keyword.
@@ -1512,7 +1546,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
       if (m) { primaryMode = m; primarySource = "category"; break; }
     }
     if (primaryMode) {
-      typeReason = `Category "${catSpec.name}" preferred primary — no dominant semantic or constraint signal.`;
+      typeReason = `Category "${catSpec.name}" preferred CORE — no dominant semantic or constraint signal.`;
     }
   }
   if (!primaryMode && primaryType) {
@@ -1531,15 +1565,17 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     if (!typeReason) typeReason = "No dominant signals — falling back to strongest keyword match.";
   }
 
-  // STEP 5: build stack. Constraints not covered by primary come first,
-  // then layers compatibility, then role diversity.
-  const { supporting, team, stackReasons } = buildSemanticStack(
+  // STEP 5: build LAYERS. Constraints not covered by CORE come first, then
+  // layers-compatibility, then functional-role diversity. Up to 3 layers.
+  const { supporting, team, stackReasons, layerCoverage } = buildSemanticStack(
     primaryMode,
     modes,
     ranked,
     constraints,
     avoidIds,
+    3,
   );
+
 
   const { avoid, isHighConfidence: avoidIsHighConfidence } = pickAvoid(
     primaryMode,

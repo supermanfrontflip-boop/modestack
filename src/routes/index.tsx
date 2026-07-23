@@ -360,7 +360,7 @@ function DetailedView({ rec, onSave }: { rec: Recommendation; onSave: () => void
 
       <div className="hud-panel p-4 space-y-2">
         <SectionLabel>CONFIDENCE</SectionLabel>
-        <ConfidenceRow label="Primary Mode Confidence" value={rec.primaryConfidence} />
+        <ConfidenceRow label="Core Mode Confidence" value={rec.primaryConfidence} />
         <ConfidenceRow label="Combined Stack Confidence" value={rec.stackConfidence} />
         <ConfidenceRow label="Stage Confidence" value={rec.stageConfidence} />
       </div>

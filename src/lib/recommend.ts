@@ -1710,7 +1710,8 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   const avoidIds = catSpec ? resolveCategoryAvoid(catSpec, text) : new Set<string>();
 
   // STEP 3: semantic ranking against ALL mode metadata + constraints.
-  const ranked = semanticRank(modes, text, constraints);
+  const intents = detectSpecificIntents(text);
+  const ranked = semanticRank(modes, text, constraints, intents);
   const rankedAllowed = ranked.filter((r) => !avoidIds.has(r.mode.id));
   const semanticTop = rankedAllowed[0];
 
@@ -1994,9 +1995,12 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     (globalThis as unknown as { __lastRecommendationDebug?: unknown }).__lastRecommendationDebug = {
       situation,
       constraints: constraintKeys,
+      specificIntents: intents.active.map((i) => ({ key: i.key, label: i.label, boost: i.boost })),
+      intentSpecificityStrength: intents.strength,
       semanticTop10: rankedAllowed.slice(0, 10).map((r) => ({
         id: r.mode.id, mode: r.mode.mode, score: r.score,
         role: functionalRole(r.mode),
+        specialistFor: r.specialistFor,
         addresses: r.addressedConstraints, reasons: r.reasons,
       })),
       core: {

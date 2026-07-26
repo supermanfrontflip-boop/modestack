@@ -1433,7 +1433,7 @@ const INTENT_CONSTRAINT_MAP: Record<string, string> = {
   quotation_verification: "verbatim_quotation",
   legal_research: "legal_research",
   judicial_prediction: "judicial_prediction",
-  device_tutorial: "tutorial",
+  device_tutorial: "device_tutorial",
   creative_divergence: "surreal_visual",
 };
 

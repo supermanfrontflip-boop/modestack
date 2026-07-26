@@ -1272,24 +1272,203 @@ function extractConstraints(text: string): ConstraintSignal[] {
   return active;
 }
 
+// ============================================================
+// INTENT SPECIFICITY LAYER
+// Highly specific intent must outrank broad conceptual similarity.
+// When the user explicitly asks for a specialized task, the specialist mode gets
+// a strong boost and broad/generalist modes take a proportional penalty.
+// ============================================================
+
+export interface SpecificIntent {
+  key: string;
+  label: string;
+  patterns: RegExp[];
+  /** matches the specialist mode's NAME (preferred) or metadata blob */
+  specialistMatch: RegExp;
+  boost: number;
+}
+
+export const SPECIFIC_INTENTS: SpecificIntent[] = [
+  {
+    key: "quotation_verification",
+    label: "Quotation / verbatim verification",
+    patterns: [
+      /only (direct |exact |verbatim )?quotes?/,
+      /\bverbatim\b/,
+      /word[- ]for[- ]word/,
+      /quote (it |them )?(exactly|directly)/,
+      /exact (quote|wording|language|text)/,
+      /don'?t paraphrase|no paraphras/,
+    ],
+    specialistMatch: /verbatim|quote|clear/i,
+    boost: 42,
+  },
+  {
+    key: "simplification",
+    label: "Simplification / plain output",
+    patterns: [
+      /cut the (fluff|filler|crap)/,
+      /\bno (fluff|filler|padding|preamble)\b/,
+      /make it (plain|simple|short|shorter|concise|tight)/,
+      /plain (english|language)/,
+      /simplify|trim (this|it)|tighten (this|it|up)/,
+      /explain (this )?(like|as if) i'?m/,
+    ],
+    specialistMatch: /^clear mode$|simplif/i,
+    boost: 44,
+  },
+  {
+    key: "risk_review",
+    label: "Adversarial risk review",
+    patterns: [
+      /poke holes/,
+      /\bfind (every |all )?(the )?(risk|risks|flaw|flaws|failure)/,
+      /what could go wrong/,
+      /failure (point|points|mode|modes)/,
+      /stress test|red team|devil'?s advocate/,
+      /(risk|threat) (review|analysis|assessment)/,
+      /before i sign/,
+    ],
+    specialistMatch: /^shadow mode$|adversar/i,
+    boost: 46,
+  },
+  {
+    key: "rapid_execution",
+    label: "Rapid execution / ship it now",
+    patterns: [
+      /knock (out|this out)/,
+      /\b(today|right now|asap|by tonight|this afternoon)\b/,
+      /\bquick(ly)?\b|\bfast\b|\brapid\b/,
+      /just (get|give) (me|it) (it |a )?done/,
+      /one page (sheet|doc|document|summary|pricing)/,
+      /\bdraft (me )?(a|the) [\w\s]{0,20}(sheet|doc|email|letter) (today|now)/,
+    ],
+    specialistMatch: /^hawk mode$/i,
+    boost: 40,
+  },
+  {
+    key: "legal_research",
+    label: "Legal research / authority lookup",
+    patterns: [
+      /\b(statute|statutes|case law|caselaw|court rule|rule of (civil|criminal) procedure)\b/,
+      /search [\w\s]{0,20}law\b/,
+      /legal research|look up the law|cite (the )?(authority|authorities|law)/,
+      /\b(indiana|federal|state) (law|code|statute)/,
+    ],
+    specialistMatch: /legal research|^owl mode$/i,
+    boost: 48,
+  },
+  {
+    key: "judicial_prediction",
+    label: "Judicial / decision prediction",
+    patterns: [
+      /how (would|will) (a |the )?(judge|court|magistrate) (rule|decide|react)/,
+      /judicial (view|perspective|prediction)/,
+      /likelihood of (winning|success|dismissal)/,
+      /from the bench/,
+    ],
+    specialistMatch: /judge|judicial/i,
+    boost: 46,
+  },
+  {
+    key: "device_tutorial",
+    label: "Device / platform step-by-step tutorial",
+    patterns: [
+      /step by step/,
+      /\bhow do i (set up|enable|turn on|configure|install)/,
+      /\b(android|iphone|ios|windows|mac|gmail|outlook|excel|word)\b/,
+      /walk me through/,
+    ],
+    specialistMatch: /platform tutor|tutorial/i,
+    boost: 44,
+  },
+  {
+    key: "creative_divergence",
+    label: "Creative divergence / imagery",
+    patterns: [
+      /brainstorm|metaphor|imagery|surreal|unexpected (angles|ideas|images)/,
+      /short story|poem|lyric/,
+    ],
+    specialistMatch: /^raven mode$/i,
+    boost: 38,
+  },
+  {
+    key: "boundary_hold",
+    label: "Firm professional boundary",
+    patterns: [
+      /hold (my|the) (boundary|line|ground)/,
+      /not budge|won'?t budge|stand firm/,
+      /firm (but )?professional/,
+      /push(ing)? me to (lower|drop|reduce)/,
+    ],
+    specialistMatch: /^glove mode$/i,
+    boost: 44,
+  },
+  {
+    key: "workflow_system",
+    label: "Whole-workflow / reusable system design",
+    patterns: [
+      /reusable (system|workflow|process)/,
+      /repeatable (system|workflow|process)/,
+      /end to end (workflow|system|process)/,
+      /systemati[sz]e|standardi[sz]e (my|our)/,
+      /design (a )?(system|workflow) for/,
+    ],
+    specialistMatch: /architect/i,
+    boost: 46,
+  },
+];
+
+/** Broad, conceptually-similar-to-everything modes. They lose ground whenever a
+ *  narrower specialist clearly satisfies the request. */
+const GENERALIST_MODE_RX = /^(architect|alien|captain|apex|owl|curator|diplomat|clear) mode$/i;
+
+/** Metadata breadth: modes whose bestFor/purpose is written in sweeping terms match
+ *  almost any prompt through word overlap. */
+const BROAD_METADATA_RX =
+  /\b(anything|everything|any (task|situation|problem)|all kinds|general purpose|big picture|whole system|overall|holistic)\b/i;
+
+export interface IntentSpecificity {
+  active: SpecificIntent[];
+  strength: number;
+}
+
+export function detectSpecificIntents(text: string): IntentSpecificity {
+  const active: SpecificIntent[] = [];
+  let strength = 0;
+  for (const intent of SPECIFIC_INTENTS) {
+    const hits = intent.patterns.filter((rx) => rx.test(text)).length;
+    if (hits > 0) {
+      active.push(intent);
+      strength += hits;
+    }
+  }
+  return { active, strength };
+}
+
 interface SemanticScore {
   mode: Mode;
   score: number;
   reasons: string[];
   addressedConstraints: string[];
+  /** intents this mode is the specialist for */
+  specialistFor: string[];
 }
 
 function semanticRank(
   modes: Mode[],
   text: string,
   constraints: ConstraintSignal[],
+  intents: IntentSpecificity = { active: [], strength: 0 },
 ): SemanticScore[] {
   const results: SemanticScore[] = [];
   for (const m of modes) {
     const reasons: string[] = [];
     const addressed: string[] = [];
+    const specialistFor: string[] = [];
     let s = 0;
     const blob = modeBlob(m);
+
 
     // trigger hits
     for (const t of m.triggers || []) {

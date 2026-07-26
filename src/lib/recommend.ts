@@ -1514,7 +1514,38 @@ function semanticRank(
       if (hits >= 2) { s -= 6 + hits; reasons.push(`avoidWhen-hits:${hits}`); }
     }
 
-    results.push({ mode: m, score: s, reasons, addressedConstraints: addressed });
+    // ---- INTENT SPECIFICITY ----
+    if (intents.active.length) {
+      for (const intent of intents.active) {
+        const isSpecialist =
+          intent.specialistMatch.test(m.mode) ||
+          (!/\^/.test(intent.specialistMatch.source) && intent.specialistMatch.test(blob));
+        if (isSpecialist) {
+          s += intent.boost;
+          specialistFor.push(intent.key);
+          reasons.push(`specific-intent:${intent.key}+${intent.boost}`);
+        }
+      }
+      if (!specialistFor.length) {
+        // Broad mode competing against a clearly specialized request.
+        const generalistName = GENERALIST_MODE_RX.test(m.mode.trim());
+        const broadMetadata = BROAD_METADATA_RX.test(
+          `${m.bestFor ?? ""} ${m.purpose ?? ""} ${m.coreObjective ?? ""}`,
+        );
+        if (generalistName || broadMetadata) {
+          const penalty = Math.min(34, 14 + intents.strength * 5);
+          s -= penalty;
+          reasons.push(
+            `generalist-penalty:-${penalty} (specialized intent ${intents.active
+              .map((i) => i.key)
+              .join(",")} present)`,
+          );
+        }
+      }
+    }
+
+    results.push({ mode: m, score: s, reasons, addressedConstraints: addressed, specialistFor });
+
   }
   results.sort((a, b) => b.score - a.score);
   return results;

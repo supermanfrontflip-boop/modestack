@@ -1,11 +1,12 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Crosshair, Database, Star, Radar } from "lucide-react";
+import { Crosshair, Database, Star, Radar, FlaskConical } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 
 const navItems = [
   { to: "/", label: "Recommend", icon: Radar },
   { to: "/vault", label: "Vault", icon: Database },
   { to: "/favorites", label: "Stacks", icon: Star },
+  { to: "/tests", label: "Tests", icon: FlaskConical },
 ] as const;
 
 export function AppShell() {

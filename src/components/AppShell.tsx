@@ -24,7 +24,7 @@ export function AppShell() {
               PROMPT // COMMAND CENTER
             </div>
             <div className="text-sm mono glow-text text-primary truncate">
-              {pathname === "/" ? "RECOMMEND" : pathname === "/vault" ? "MODE VAULT" : pathname === "/favorites" ? "FAVORITE STACKS" : "STATION"}
+              {pathname === "/" ? "RECOMMEND" : pathname === "/vault" ? "MODE VAULT" : pathname === "/favorites" ? "FAVORITE STACKS" : pathname === "/tests" ? "REGRESSION TESTS" : "STATION"}
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -40,7 +40,7 @@ export function AppShell() {
       </main>
 
       <nav className="fixed bottom-0 inset-x-0 z-30 border-t border-border bg-background/85 backdrop-blur-md">
-        <div className="mx-auto max-w-2xl grid grid-cols-3">
+        <div className="mx-auto max-w-2xl grid grid-cols-4">
           {navItems.map(({ to, label, icon: Icon }) => {
             const active = pathname === to;
             return (

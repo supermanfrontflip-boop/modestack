@@ -1300,7 +1300,7 @@ export const SPECIFIC_INTENTS: SpecificIntent[] = [
       /exact (quote|wording|language|text)/,
       /don'?t paraphrase|no paraphras/,
     ],
-    specialistMatch: /verbatim|quote|clear/i,
+    specialistMatch: /^clear mode$|verbatim/i,
     boost: 42,
   },
   {
@@ -1428,6 +1428,15 @@ const GENERALIST_MODE_RX = /^(architect|alien|captain|apex|owl|curator|diplomat|
 const BROAD_METADATA_RX =
   /\b(anything|everything|any (task|situation|problem)|all kinds|general purpose|big picture|whole system|overall|holistic)\b/i;
 
+/** intent key -> constraint key it competes with */
+const INTENT_CONSTRAINT_MAP: Record<string, string> = {
+  quotation_verification: "verbatim_quotation",
+  legal_research: "legal_research",
+  judicial_prediction: "judicial_prediction",
+  device_tutorial: "tutorial",
+  creative_divergence: "surreal_visual",
+};
+
 export interface IntentSpecificity {
   active: SpecificIntent[];
   strength: number;
@@ -1524,6 +1533,18 @@ function semanticRank(
           s += intent.boost;
           specialistFor.push(intent.key);
           reasons.push(`specific-intent:${intent.key}+${intent.boost}`);
+        }
+      }
+      // A broad mode that only matched the constraint keyword pool (not the specialist)
+      // must not out-rank the specialist for that same intent.
+      for (const intent of intents.active) {
+        const ck = INTENT_CONSTRAINT_MAP[intent.key];
+        if (!ck || specialistFor.includes(intent.key)) continue;
+        if (addressed.includes(ck)) {
+          const w = CONSTRAINT_SIGNALS.find((c) => c.key === ck)?.weight ?? 0;
+          const cut = Math.round(w * 0.8);
+          s -= cut;
+          reasons.push(`broad-match-on-specialized-intent:${intent.key}-${cut}`);
         }
       }
       if (!specialistFor.length) {

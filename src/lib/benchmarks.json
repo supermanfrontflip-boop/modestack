@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "bench-001",
+      "name": "Legal research beats verbatim constraint",
+      "situation": "Search Indiana law for the standard to disqualify a magistrate and give me only direct quotes from the statutes.",
+      "expectedCore": "Owl Mode",
+      "expectedLayers": ["Clear Mode"]
+    },
+    {
+      "id": "bench-002",
+      "name": "Workflow design promotes systems thinking",
+      "situation": "I want to design a repeatable end to end workflow system for how my process serving jobs get intake, dispatched, and closed out.",
+      "expectedCore": "Architect Mode",
+      "expectedLayers": []
+    },
+    {
+      "id": "bench-003",
+      "name": "Firm boundary correspondence",
+      "situation": "A law firm client is pushing me to lower my rate after the job was already accepted. I need to hold my boundary in a firm professional email and not budge.",
+      "expectedCore": "Glove Mode",
+      "expectedLayers": []
+    },
+    {
+      "id": "bench-004",
+      "name": "Risk review surfaces adversarial mode",
+      "situation": "Poke holes in my plan and find every risk and failure point before I sign this vendor contract.",
+      "expectedCore": "Shadow Mode",
+      "expectedLayers": []
+    },
+    {
+      "id": "bench-005",
+      "name": "Step by step device help",
+      "situation": "Walk me step by step through setting up call forwarding on my Android phone.",
+      "expectedCore": "Platform Tutor Mode",
+      "expectedLayers": []
+    },
+    {
+      "id": "bench-006",
+      "name": "Fast execution deliverable",
+      "situation": "I need to knock out a one page pricing sheet for my process serving rates today.",
+      "expectedCore": "Hawk Mode",
+      "expectedLayers": []
+    },
+    {
+      "id": "bench-007",
+      "name": "Creative idea generation",
+      "situation": "Help me brainstorm strange unexpected metaphors and imagery for a short story about a courthouse at night.",
+      "expectedCore": "Raven Mode",
+      "expectedLayers": []
+    },
+    {
+      "id": "bench-008",
+      "name": "Tighten and trim output",
+      "situation": "Cut the fluff out of this paragraph and make it plain and short with no filler.",
+      "expectedCore": "Clear Mode",
+      "expectedLayers": []
+    }
+  ]
+}

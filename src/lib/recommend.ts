@@ -1807,6 +1807,37 @@ function buildSemanticStack(
     }
   }
 
+  // 4. If nothing cleared the thresholds, allow ONE genuinely complementary layer:
+  //    positive semantic score and a functional role the CORE does not already cover.
+  //    Still no layer at all when nothing scores above zero.
+  if (!supporting.length) {
+    const cand = ranked.find(
+      (r) =>
+        !used.has(r.mode.id) &&
+        !avoidIds.has(r.mode.id) &&
+        r.score > 0 &&
+        !usedFnRoles.has(functionalRole(r.mode)),
+    );
+    if (cand) {
+      addLayer(
+        cand.mode,
+        `${cand.mode.mode} is the only mode adding a distinct function [${functionalRole(cand.mode)}] the CORE lacks (score ${cand.score})`,
+      );
+    }
+  }
+
+  // Layer integrity: CORE can never be one of its own LAYERS, and no duplicates.
+  const seen = new Set<string>([primary.id]);
+  const cleanSupporting = supporting.filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+  supporting.length = 0;
+  supporting.push(...cleanSupporting);
+
+
+
   const team: TeamMember[] = [
     { mode: primary, role: roleOf(primary).role, contribution: roleOf(primary).contribution },
     ...supporting.map((m) => ({

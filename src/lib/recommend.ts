@@ -2139,8 +2139,12 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     (globalThis as unknown as { __lastRecommendationDebug?: unknown }).__lastRecommendationDebug = {
       situation,
       constraints: constraintKeys,
-      specificIntents: intents.active.map((i) => ({ key: i.key, label: i.label, boost: i.boost })),
+      specificIntents: intents.active.map((i) => ({
+        key: i.key, label: i.label, boost: i.boost, priority: i.priority, coreEligible: i.coreEligible,
+      })),
+      coreIntent: coreIntentKey,
       intentSpecificityStrength: intents.strength,
+
       semanticTop10: rankedAllowed.slice(0, 10).map((r) => ({
         id: r.mode.id, mode: r.mode.mode, score: r.score,
         role: functionalRole(r.mode),

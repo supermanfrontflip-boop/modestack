@@ -1512,15 +1512,43 @@ export interface IntentSpecificity {
 export function detectSpecificIntents(text: string): IntentSpecificity {
   const active: SpecificIntent[] = [];
   let strength = 0;
+  const fiction = FICTION_CONTEXT_RX.test(text);
   for (const intent of SPECIFIC_INTENTS) {
     const hits = intent.patterns.filter((rx) => rx.test(text)).length;
-    if (hits > 0) {
-      active.push(intent);
-      strength += hits;
-    }
+    if (hits <= 0) continue;
+    // Negative evidence: creative framing outranks domain vocabulary.
+    if (fiction && FICTION_SUPPRESSED_INTENTS.has(intent.key)) continue;
+    active.push(intent);
+    strength += hits;
   }
+  // Most specific / highest-priority intent first so CORE selection is deterministic.
+  active.sort((a, b) => b.priority - a.priority || a.key.localeCompare(b.key));
   return { active, strength };
 }
+
+/** Resolve the vault mode that is the specialist for an intent, name match first. */
+export function resolveSpecialist(
+  intent: SpecificIntent,
+  modes: Mode[],
+  avoidIds: Set<string> = new Set(),
+): Mode | null {
+  const pool = modes.filter((m) => !avoidIds.has(m.id));
+  const byName = pool.find((m) => intent.specialistMatch.test(m.mode.trim()));
+  if (byName) return byName;
+  if (/\^/.test(intent.specialistMatch.source)) {
+    // Anchored patterns are name-only; fall back to the unanchored alternatives.
+    const loose = new RegExp(
+      intent.specialistMatch.source
+        .split("|")
+        .filter((p) => !p.startsWith("^"))
+        .join("|") || "(?!)",
+      "i",
+    );
+    return pool.find((m) => loose.test(modeBlob(m))) ?? null;
+  }
+  return pool.find((m) => intent.specialistMatch.test(modeBlob(m))) ?? null;
+}
+
 
 interface SemanticScore {
   mode: Mode;

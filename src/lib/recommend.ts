@@ -1286,6 +1286,13 @@ export interface SpecificIntent {
   /** matches the specialist mode's NAME (preferred) or metadata blob */
   specialistMatch: RegExp;
   boost: number;
+  /** Higher wins when several narrow intents fire at once. */
+  priority: number;
+  /** Task-performing intents may claim CORE. Output constraints may not. */
+  coreEligible: boolean;
+  /** Modes that LOOK relevant because of surface vocabulary but do the wrong job. */
+  counterMatch?: RegExp;
+  counterPenalty?: number;
 }
 
 export const SPECIFIC_INTENTS: SpecificIntent[] = [
@@ -1300,51 +1307,71 @@ export const SPECIFIC_INTENTS: SpecificIntent[] = [
       /exact (quote|wording|language|text)/,
       /don'?t paraphrase|no paraphras/,
     ],
-    specialistMatch: /^clear mode$|verbatim/i,
+    specialistMatch: /verbatim|^clear mode$/i,
     boost: 42,
+    priority: 20,
+    coreEligible: false,
   },
   {
     key: "simplification",
-    label: "Simplification / plain output",
+    label: "Plain-language simplification",
     patterns: [
-      /cut the (fluff|filler|crap)/,
-      /\bno (fluff|filler|padding|preamble)\b/,
+      /cut the (fluff|filler|crap|padding)/,
+      /\bno (fluff|filler|padding|preamble|jargon)\b/,
       /make it (plain|simple|short|shorter|concise|tight)/,
-      /plain (english|language)/,
-      /simplify|trim (this|it)|tighten (this|it|up)/,
+      /plain (english|language|words)/,
+      /\bsimplify\b|\btrim (this|it)\b|\btighten (this|it|up)\b|\bdumb it down\b/,
       /explain (this )?(like|as if) i'?m/,
+      /shorter and (clearer|plainer|simpler)/,
     ],
-    specialistMatch: /^clear mode$|simplif/i,
-    boost: 44,
+    specialistMatch: /^clear mode$|plain language|simplif/i,
+    boost: 46,
+    priority: 55,
+    coreEligible: true,
+    // "cut", "make", "short" read as construction/production verbs to builder-type modes.
+    counterMatch: /^(builder|operator|architect|systems? architect|whaler|apex) mode$|construct|assemble|build out/i,
+    counterPenalty: 30,
   },
   {
     key: "risk_review",
     label: "Adversarial risk review",
     patterns: [
       /poke holes/,
-      /\bfind (every |all )?(the )?(risk|risks|flaw|flaws|failure)/,
+      /\bfind (every |all )?(the )?(risk|risks|flaw|flaws|failure|weakness)/,
       /what could go wrong/,
       /failure (point|points|mode|modes)/,
       /stress test|red team|devil'?s advocate/,
-      /(risk|threat) (review|analysis|assessment)/,
-      /before i sign/,
+      /(risk|threat|vulnerabilit\w*) (review|analysis|assessment)/,
+      /before i (sign|commit|agree)/,
+      /tear (it|this|my plan) apart|attack my (plan|argument|case)/,
     ],
-    specialistMatch: /^shadow mode$|adversar/i,
-    boost: 46,
+    specialistMatch: /^shadow mode$|adversar|red team/i,
+    boost: 50,
+    priority: 76,
+    coreEligible: true,
+    // "contract", "vendor", "sign" pull negotiation/diplomacy modes even though the
+    // user asked for critique, not for a deal to be struck.
+    counterMatch: /^(negotiator|diplomat|glove|closer|whaler) mode$|negotiat|bargain|deal[- ]making/i,
+    counterPenalty: 34,
   },
   {
     key: "rapid_execution",
-    label: "Rapid execution / ship it now",
+    label: "Rapid focused deliverable",
     patterns: [
-      /knock (out|this out)/,
-      /\b(today|right now|asap|by tonight|this afternoon)\b/,
-      /\bquick(ly)?\b|\bfast\b|\brapid\b/,
+      /knock (out|this out|it out)/,
+      /\b(today|right now|asap|by tonight|this afternoon|by end of day|eod)\b/,
+      /\bquick(ly)?\b|\bfast\b|\brapid\b|\bjust get it done\b/,
       /just (get|give) (me|it) (it |a )?done/,
-      /one page (sheet|doc|document|summary|pricing)/,
+      /one[- ]pag(e|er)\b/,
       /\bdraft (me )?(a|the) [\w\s]{0,20}(sheet|doc|email|letter) (today|now)/,
     ],
-    specialistMatch: /^hawk mode$/i,
-    boost: 40,
+    specialistMatch: /^hawk mode$|rapid execution|fast execution/i,
+    boost: 44,
+    priority: 60,
+    coreEligible: true,
+    // Operator / Architect read "process", "rates", "jobs" as an ops system to design.
+    counterMatch: /^(operator|architect|systems? architect|curator) mode$|workflow design|standard operating/i,
+    counterPenalty: 32,
   },
   {
     key: "legal_research",
@@ -1354,9 +1381,12 @@ export const SPECIFIC_INTENTS: SpecificIntent[] = [
       /search [\w\s]{0,20}law\b/,
       /legal research|look up the law|cite (the )?(authority|authorities|law)/,
       /\b(indiana|federal|state) (law|code|statute)/,
+      /\b(the )?(legal )?standard (to|for)\b/,
     ],
     specialistMatch: /legal research|^owl mode$/i,
     boost: 48,
+    priority: 90,
+    coreEligible: true,
   },
   {
     key: "judicial_prediction",
@@ -1367,42 +1397,67 @@ export const SPECIFIC_INTENTS: SpecificIntent[] = [
       /likelihood of (winning|success|dismissal)/,
       /from the bench/,
     ],
-    specialistMatch: /judge|judicial/i,
+    specialistMatch: /^judge mode$|judicial/i,
     boost: 46,
+    priority: 85,
+    coreEligible: true,
   },
   {
     key: "device_tutorial",
     label: "Device / platform step-by-step tutorial",
     patterns: [
-      /step by step/,
-      /\bhow do i (set up|enable|turn on|configure|install)/,
-      /\b(android|iphone|ios|windows|mac|gmail|outlook|excel|word)\b/,
-      /walk me through/,
+      /step[- ]by[- ]step/,
+      /\bhow do i (set up|enable|turn on|configure|install|change)/,
+      /\bwalk me through\b/,
+      /\b(set|setting|turn|turning) (up|on) [\w\s]{0,20}\b(phone|android|iphone|ios|windows|mac|app|settings|account|forwarding|voicemail|wifi)\b/,
+      /\b(android|iphone|ios|windows|mac|gmail|outlook|excel|word|chrome|zoom)\b/,
     ],
-    specialistMatch: /platform tutor|tutorial/i,
-    boost: 44,
+    specialistMatch: /platform tutor|tutorial|^tech tutor mode$/i,
+    boost: 48,
+    priority: 80,
+    coreEligible: true,
+    // Beginner-friendliness ≠ device instructions. Kindergarten/ELI5 modes simplify
+    // concepts; they do not know platform UI paths.
+    counterMatch: /^(kindergarten|gomer pyle|alien|clear) mode$|eli5|like a child|beginner explanation/i,
+    counterPenalty: 30,
   },
   {
     key: "creative_divergence",
-    label: "Creative divergence / imagery",
+    label: "Creative metaphor and imagery generation",
     patterns: [
-      /brainstorm|metaphor|imagery|surreal|unexpected (angles|ideas|images)/,
-      /short story|poem|lyric/,
+      /\bbrainstorm\b|\bmetaphor|\bimagery\b|\bsurreal\b|unexpected (angles|ideas|images|metaphors)/,
+      /short story|\bpoem\b|\blyric|\bfiction\b|\bnovel\b|\bscene\b/,
+      /\bevocative\b|\bsymbolis|\bimagine\b/,
     ],
-    specialistMatch: /^raven mode$/i,
-    boost: 38,
+    specialistMatch: /^raven mode$|creative diverg|lateral/i,
+    boost: 44,
+    priority: 70,
+    coreEligible: true,
+    // Fictional settings (a courthouse, a hospital, a police station) must not route
+    // to domain-expert modes; the task is imagery, not law/medicine/policing.
+    counterMatch: /^(judge|legal research|detective|negotiator|glove) mode$|judicial|litigat|statute|case law/i,
+    counterPenalty: 36,
   },
   {
     key: "boundary_hold",
-    label: "Firm professional boundary",
+    label: "Firm professional boundary correspondence",
     patterns: [
-      /hold (my|the) (boundary|line|ground)/,
-      /not budge|won'?t budge|stand firm/,
-      /firm (but )?professional/,
-      /push(ing)? me to (lower|drop|reduce)/,
+      /hold (my|the) (boundary|boundaries|line|ground|rate|price)/,
+      /not budge|won'?t budge|stand firm|hold firm|no discount/,
+      /firm (but )?(and )?professional/,
+      /push(ing)? (me |back )?(to )?(lower|drop|reduce|discount|renegotiate)/,
+      /(lower|reduce|drop|cut) (my|the|our) (rate|rates|price|prices|fee|fees)/,
+      /after (the|it was|we) [\w\s]{0,20}(already )?(accepted|agreed|signed|booked)/,
+      /(decline|refuse|say no|push back) (politely|professionally|firmly)/,
     ],
-    specialistMatch: /^glove mode$/i,
-    boost: 44,
+    specialistMatch: /^glove mode$|boundary|firm professional/i,
+    boost: 50,
+    priority: 78,
+    coreEligible: true,
+    // "law firm", "client", "job", "case" make investigative/judicial modes look
+    // relevant. This is correspondence, not an investigation.
+    counterMatch: /^(detective|judge|owl|legal research|shadow) mode$|investigat|forensic|reconstruct|judicial/i,
+    counterPenalty: 34,
   },
   {
     key: "workflow_system",
@@ -1410,14 +1465,26 @@ export const SPECIFIC_INTENTS: SpecificIntent[] = [
     patterns: [
       /reusable (system|workflow|process)/,
       /repeatable (system|workflow|process)/,
-      /end to end (workflow|system|process)/,
+      /end[- ]to[- ]end (workflow|system|process)/,
       /systemati[sz]e|standardi[sz]e (my|our)/,
-      /design (a )?(system|workflow) for/,
+      /design (a |an )?[\w\s]{0,30}?(system|workflow|pipeline) (for|around|to)/,
+      /\b(intake|dispatch\w*)\b.*\b(closed? out|close[- ]?out|completion)\b/,
     ],
-    specialistMatch: /architect/i,
+    specialistMatch: /systems?\s*architect|^architect mode$/i,
     boost: 46,
+    priority: 65,
+    coreEligible: true,
   },
 ];
+
+/** Fictional / creative framing suppresses domain-expert intents that only fired on
+ *  setting vocabulary ("courthouse", "hospital", "precinct"). */
+const FICTION_CONTEXT_RX =
+  /\b(short story|novel|fiction|fictional|poem|poetry|lyrics?|screenplay|scene|character|metaphors?|imagery|worldbuild\w*)\b/;
+
+/** Intents that must stand down when the prompt is clearly creative fiction. */
+const FICTION_SUPPRESSED_INTENTS = new Set(["legal_research", "judicial_prediction", "boundary_hold"]);
+
 
 /** Broad, conceptually-similar-to-everything modes. They lose ground whenever a
  *  narrower specialist clearly satisfies the request. */

@@ -1642,6 +1642,17 @@ function semanticRank(
           reasons.push(`broad-match-on-specialized-intent:${intent.key}-${cut}`);
         }
       }
+      // Negative evidence: modes that only look relevant because of surface
+      // vocabulary shared with the intent (contract→negotiator, courthouse→judge,
+      // "law firm"→detective, "build/cut"→builder, beginner→kindergarten).
+      for (const intent of intents.active) {
+        if (!intent.counterMatch || specialistFor.includes(intent.key)) continue;
+        if (intent.counterMatch.test(m.mode.trim()) || intent.counterMatch.test(blob)) {
+          const pen = intent.counterPenalty ?? 30;
+          s -= pen;
+          reasons.push(`false-specialist-penalty:${intent.key}-${pen}`);
+        }
+      }
       if (!specialistFor.length) {
         // Broad mode competing against a clearly specialized request.
         const generalistName = GENERALIST_MODE_RX.test(m.mode.trim());
@@ -1658,6 +1669,7 @@ function semanticRank(
           );
         }
       }
+
     }
 
     results.push({ mode: m, score: s, reasons, addressedConstraints: addressed, specialistFor });

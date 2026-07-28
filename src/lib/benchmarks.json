@@ -5,15 +5,15 @@
       "id": "bench-001",
       "name": "Legal research beats verbatim constraint",
       "situation": "Search Indiana law for the standard to disqualify a magistrate and give me only direct quotes from the statutes.",
-      "expectedCore": "Owl Mode",
-      "expectedLayers": ["Clear Mode"]
+      "expectedCore": "Legal Research Mode",
+      "expectedLayers": ["Verbatim Mode"]
     },
     {
       "id": "bench-002",
       "name": "Workflow design promotes systems thinking",
       "situation": "I want to design a repeatable end to end workflow system for how my process serving jobs get intake, dispatched, and closed out.",
-      "expectedCore": "Architect Mode",
-      "expectedLayers": []
+      "expectedCore": "Systems Architect Mode",
+      "expectedLayers": ["Operator Mode"]
     },
     {
       "id": "bench-003",

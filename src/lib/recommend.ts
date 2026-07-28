@@ -1533,21 +1533,23 @@ export function resolveSpecialist(
   avoidIds: Set<string> = new Set(),
 ): Mode | null {
   const pool = modes.filter((m) => !avoidIds.has(m.id));
-  const byName = pool.find((m) => intent.specialistMatch.test(m.mode.trim()));
-  if (byName) return byName;
-  if (/\^/.test(intent.specialistMatch.source)) {
-    // Anchored patterns are name-only; fall back to the unanchored alternatives.
-    const loose = new RegExp(
-      intent.specialistMatch.source
-        .split("|")
-        .filter((p) => !p.startsWith("^"))
-        .join("|") || "(?!)",
-      "i",
-    );
-    return pool.find((m) => loose.test(modeBlob(m))) ?? null;
+  // Alternatives are ordered most-specific-first: "legal research" must win over
+  // the generalist fallback "^owl mode$", and "systems architect" over "^architect mode$".
+  const alternatives = intent.specialistMatch.source.split("|").filter(Boolean);
+  for (const alt of alternatives) {
+    const rx = new RegExp(alt, "i");
+    const named = pool.find((m) => rx.test(m.mode.trim()));
+    if (named) return named;
   }
-  return pool.find((m) => intent.specialistMatch.test(modeBlob(m))) ?? null;
+  for (const alt of alternatives) {
+    if (alt.startsWith("^")) continue; // anchored alternatives are name-only
+    const rx = new RegExp(alt, "i");
+    const viaBlob = pool.find((m) => rx.test(modeBlob(m)));
+    if (viaBlob) return viaBlob;
+  }
+  return null;
 }
+
 
 
 interface SemanticScore {

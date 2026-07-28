@@ -1863,9 +1863,24 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   let typeReason = "";
   let primarySource = "semantic";
 
+  // (a0) Narrow, high-specificity intent claims CORE. Highest-priority core-eligible
+  // intent whose specialist actually exists in the vault wins. Output-only intents
+  // (verbatim, etc.) are never core-eligible and fall through to LAYERS.
+  let coreIntentKey: string | null = null;
+  for (const intent of intents.active) {
+    if (!intent.coreEligible) continue;
+    const specialist = resolveSpecialist(intent, modes, avoidIds);
+    if (!specialist) continue;
+    primaryMode = specialist;
+    coreIntentKey = intent.key;
+    primarySource = `specific-intent:${intent.key}`;
+    typeReason = `Explicit ${intent.label.toLowerCase()} intent detected — ${specialist.mode} is the narrow specialist for it, so it outranks broader conceptual matches.`;
+    break;
+  }
+
   // (a) Systems-Architect / workflow-system promotion.
   const systemsCoreSignal = detectSystemsArchitectCore(text);
-  if (systemsCoreSignal) {
+  if (!primaryMode && systemsCoreSignal) {
     const arch = findOptimizationCore(modes, avoidIds);
     if (arch) {
       primaryMode = arch;
@@ -1874,6 +1889,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
         "Whole-workflow / reusable-system language detected — Systems Architect (optimization role) promoted to CORE.";
     }
   }
+
 
   const semanticThreshold = 6;
   const dominantConstraint = constraints.length > 0 &&

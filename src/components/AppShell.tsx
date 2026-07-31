@@ -1,6 +1,8 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Crosshair, Database, Star, Radar, FlaskConical } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
+import { ModeProvider } from "@/lib/mode-provider";
+
 
 const navItems = [
   { to: "/", label: "Recommend", icon: Radar },
@@ -36,8 +38,11 @@ export function AppShell() {
       </header>
 
       <main className="flex-1 mx-auto w-full max-w-2xl px-4 pt-5 pb-28">
-        <Outlet />
+        <ModeProvider>
+          <Outlet />
+        </ModeProvider>
       </main>
+
 
       <nav className="fixed bottom-0 inset-x-0 z-30 border-t border-border bg-background/85 backdrop-blur-md">
         <div className="mx-auto max-w-2xl grid grid-cols-4">

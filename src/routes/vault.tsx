@@ -9,6 +9,8 @@ import { useModes } from "@/lib/vault-store";
 import { CopyButton } from "@/components/CopyButton";
 import { CategoryTag, IntensityPill } from "@/components/ModeBadge";
 import { ModeEditorDialog } from "@/components/ModeEditorDialog";
+import { ModeDiagnostics } from "@/components/ModeDiagnostics";
+
 import type { Mode } from "@/lib/modes-data";
 import { Download, Pencil, Plus, RotateCcw, Search, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -136,7 +138,9 @@ function VaultPage() {
 
   return (
     <div className="space-y-4">
+      <ModeDiagnostics />
       <div className="hud-panel p-3 space-y-3">
+
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

@@ -3,6 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, XCircle, FlaskConical, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useModes } from "@/lib/vault-store";
+import { ModeDiagnostics } from "@/components/ModeDiagnostics";
+
 import { recommend } from "@/lib/recommend";
 import benchmarks from "@/lib/benchmarks.json";
 
@@ -52,12 +54,14 @@ function norm(s: string) {
 function TestsPage() {
   const { modes, hydrated } = useModes();
   const [results, setResults] = useState<Result[] | null>(null);
+  const [ranWith, setRanWith] = useState<number | null>(null);
 
   const summary = useMemo(() => {
     if (!results) return null;
     const passed = results.filter((r) => r.pass).length;
     return { passed, total: results.length };
   }, [results]);
+
 
   const runAll = () => {
     const next: Result[] = CASES.map((bench) => {
@@ -78,11 +82,14 @@ function TestsPage() {
       };
     });
     setResults(next);
+    setRanWith(modes.length);
   };
 
   return (
     <div className="space-y-5">
+      <ModeDiagnostics />
       <section className="hud-corner border border-border bg-card p-4">
+
         <div className="flex items-center gap-2">
           <FlaskConical className="h-4 w-4 text-primary" />
           <h1 className="mono text-sm tracking-[0.2em] text-primary glow-text">
@@ -114,10 +121,11 @@ function TestsPage() {
               summary.passed === summary.total ? "text-primary" : "text-destructive"
             }`}
           >
-            {summary.passed} / {summary.total} PASSING
+            {summary.passed} / {summary.total} PASSING · RUN AGAINST {ranWith} MODES
           </div>
         )}
       </section>
+
 
       {results?.map((r) => (
         <section

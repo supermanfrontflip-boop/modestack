@@ -52,12 +52,14 @@ function norm(s: string) {
 function TestsPage() {
   const { modes, hydrated } = useModes();
   const [results, setResults] = useState<Result[] | null>(null);
+  const [ranWith, setRanWith] = useState<number | null>(null);
 
   const summary = useMemo(() => {
     if (!results) return null;
     const passed = results.filter((r) => r.pass).length;
     return { passed, total: results.length };
   }, [results]);
+
 
   const runAll = () => {
     const next: Result[] = CASES.map((bench) => {

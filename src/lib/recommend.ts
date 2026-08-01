@@ -1921,20 +1921,40 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   let typeReason = "";
   let primarySource = "semantic";
 
-  // (a0) Narrow, high-specificity intent claims CORE. Highest-priority core-eligible
-  // intent whose specialist actually exists in the vault wins. Output-only intents
-  // (verbatim, etc.) are never core-eligible and fall through to LAYERS.
+  // (a0) INTENT-FIRST CORE. The mode that best performs the requested OPERATION wins,
+  // regardless of how strongly other modes match the subject matter. Output-control
+  // intents (verbatim etc.) can never claim CORE — they belong in LAYERS.
   let coreIntentKey: string | null = null;
-  for (const intent of intents.active) {
-    if (!intent.coreEligible) continue;
-    const specialist = resolveSpecialist(intent, modes, avoidIds);
-    if (!specialist) continue;
-    primaryMode = specialist;
-    coreIntentKey = intent.key;
-    primarySource = `specific-intent:${intent.key}`;
-    typeReason = `Explicit ${intent.label.toLowerCase()} intent detected — ${specialist.mode} is the narrow specialist for it, so it outranks broader conceptual matches.`;
-    break;
+  let intentCoreCandidates: IntentModeScore[] = [];
+  if (intentModel.coreIntent) {
+    const op = intentModel.coreIntent;
+    intentCoreCandidates = intentModel.ranked.filter(
+      (r) => !avoidIds.has(r.mode.id) && r.matchedIntents.includes(op.id) && r.score > 0,
+    );
+    const winner = intentCoreCandidates[0];
+    if (winner) {
+      primaryMode = winner.mode;
+      coreIntentKey = op.id;
+      primarySource = `intent:${op.id}`;
+      typeReason = `Requested operation is "${op.label}" (topic: ${intentModel.topic.label}). ${winner.mode.mode} performs that operation, so it outranks modes that only match the subject matter.`;
+    }
   }
+
+  // (a1) Legacy narrow-specificity intent layer (kept as a fallback when the intent
+  // model found no capable mode in the vault).
+  if (!primaryMode) {
+    for (const intent of intents.active) {
+      if (!intent.coreEligible) continue;
+      const specialist = resolveSpecialist(intent, modes, avoidIds);
+      if (!specialist) continue;
+      primaryMode = specialist;
+      coreIntentKey = intent.key;
+      primarySource = `specific-intent:${intent.key}`;
+      typeReason = `Explicit ${intent.label.toLowerCase()} intent detected — ${specialist.mode} is the narrow specialist for it, so it outranks broader conceptual matches.`;
+      break;
+    }
+  }
+
 
   // (a) Systems-Architect / workflow-system promotion.
   const systemsCoreSignal = detectSystemsArchitectCore(text);

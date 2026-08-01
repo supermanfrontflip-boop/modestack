@@ -396,8 +396,15 @@ export function runIntentModel(text: string, modes: Mode[]): IntentModelResult {
       const factor = isDominant ? 1 : SECONDARY_FACTOR;
       let gained = 0;
       if (f.def.capabilityName.test(name)) {
-        gained = NAME_WEIGHT;
-        reasons.push(`${f.def.id}: name declares capability +${Math.round(NAME_WEIGHT * factor)}`);
+        // Capability alternatives are written most-specific-first, so a mode whose
+        // name matches an earlier alternative is the narrower specialist.
+        const alts = f.def.capabilityName.source.split("|").filter(Boolean);
+        const idx = alts.findIndex((a) => new RegExp(a, "i").test(name));
+        const specificity = idx >= 0 ? (alts.length - idx) * SPECIFICITY_STEP : 0;
+        gained = NAME_WEIGHT + specificity;
+        reasons.push(
+          `${f.def.id}: name declares capability +${Math.round(gained * factor)} (specificity tier ${idx + 1}/${alts.length})`,
+        );
       } else if (f.def.capabilityMeta?.test(meta)) {
         gained = META_WEIGHT;
         reasons.push(`${f.def.id}: category/role declares capability +${Math.round(META_WEIGHT * factor)}`);
@@ -410,6 +417,7 @@ export function runIntentModel(text: string, modes: Mode[]): IntentModelResult {
         matchedIntents.push(f.def.id);
       }
     }
+
 
     // Negative evidence: adjacent capabilities that share the topic but not the
     // requested operation. Applied only when the mode is not itself a match for the

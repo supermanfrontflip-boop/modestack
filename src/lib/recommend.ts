@@ -1,4 +1,10 @@
 import type { Mode } from "./modes-data";
+import {
+  runIntentModel,
+  type IntentModelResult,
+  type IntentModeScore,
+} from "./intent-model";
+
 
 export type CognitiveRole = "perspective" | "execution" | "risk";
 

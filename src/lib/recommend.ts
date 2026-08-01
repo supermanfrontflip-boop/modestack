@@ -1887,11 +1887,19 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   const { spec: catSpec, evidence: categoryEvidence } = detectCategory(text);
   const avoidIds = catSpec ? resolveCategoryAvoid(catSpec, text) : new Set<string>();
 
-  // STEP 3: semantic ranking against ALL mode metadata + constraints.
+  // STEP 2.5: INTENT-FIRST MODEL. Separates requested operation / reasoning style
+  // from subject matter, and ranks modes primarily on the operation.
+  const intentModel: IntentModelResult = runIntentModel(text, modes);
+  const intentBonus = new Map<string, number>(
+    intentModel.ranked.map((r) => [r.mode.id, r.score] as [string, number]),
+  );
+
+  // STEP 3: semantic ranking against ALL mode metadata + constraints + intent model.
   const intents = detectSpecificIntents(text);
-  const ranked = semanticRank(modes, text, constraints, intents);
+  const ranked = semanticRank(modes, text, constraints, intents, intentBonus);
   const rankedAllowed = ranked.filter((r) => !avoidIds.has(r.mode.id));
   const semanticTop = rankedAllowed[0];
+
 
   // Determine Situation Type (existing detector — used for reason text + fallback).
   const primaryType = types[0];

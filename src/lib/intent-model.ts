@@ -314,6 +314,7 @@ const SECONDARY_FACTOR = 0.45;
 const SUPPRESS_NAME = 55;
 const SUPPRESS_META = 26;
 const TOPIC_WEIGHT = 5;
+const SPECIFICITY_STEP = 4;
 
 function nameOf(m: Mode) {
   return (m.mode || "").trim().toLowerCase();

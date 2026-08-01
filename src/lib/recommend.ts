@@ -1572,6 +1572,7 @@ function semanticRank(
   text: string,
   constraints: ConstraintSignal[],
   intents: IntentSpecificity = { active: [], strength: 0 },
+  intentBonus: Map<string, number> = new Map(),
 ): SemanticScore[] {
   const results: SemanticScore[] = [];
   for (const m of modes) {
@@ -1580,6 +1581,16 @@ function semanticRank(
     const specialistFor: string[] = [];
     let s = 0;
     const blob = modeBlob(m);
+
+    // ---- INTENT-FIRST MODEL (requested operation > subject matter) ----
+    const imScore = intentBonus.get(m.id) ?? 0;
+    if (imScore !== 0) {
+      const applied = Math.round(imScore * 0.75);
+      s += applied;
+      reasons.push(`intent-model:${applied >= 0 ? "+" : ""}${applied}`);
+    }
+
+
 
 
     // trigger hits

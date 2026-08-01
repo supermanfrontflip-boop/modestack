@@ -1,4 +1,10 @@
 import type { Mode } from "./modes-data";
+import {
+  runIntentModel,
+  type IntentModelResult,
+  type IntentModeScore,
+} from "./intent-model";
+
 
 export type CognitiveRole = "perspective" | "execution" | "risk";
 
@@ -1566,6 +1572,7 @@ function semanticRank(
   text: string,
   constraints: ConstraintSignal[],
   intents: IntentSpecificity = { active: [], strength: 0 },
+  intentBonus: Map<string, number> = new Map(),
 ): SemanticScore[] {
   const results: SemanticScore[] = [];
   for (const m of modes) {
@@ -1574,6 +1581,16 @@ function semanticRank(
     const specialistFor: string[] = [];
     let s = 0;
     const blob = modeBlob(m);
+
+    // ---- INTENT-FIRST MODEL (requested operation > subject matter) ----
+    const imScore = intentBonus.get(m.id) ?? 0;
+    if (imScore !== 0) {
+      const applied = Math.round(imScore * 0.75);
+      s += applied;
+      reasons.push(`intent-model:${applied >= 0 ? "+" : ""}${applied}`);
+    }
+
+
 
 
     // trigger hits
@@ -1870,11 +1887,19 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   const { spec: catSpec, evidence: categoryEvidence } = detectCategory(text);
   const avoidIds = catSpec ? resolveCategoryAvoid(catSpec, text) : new Set<string>();
 
-  // STEP 3: semantic ranking against ALL mode metadata + constraints.
+  // STEP 2.5: INTENT-FIRST MODEL. Separates requested operation / reasoning style
+  // from subject matter, and ranks modes primarily on the operation.
+  const intentModel: IntentModelResult = runIntentModel(text, modes);
+  const intentBonus = new Map<string, number>(
+    intentModel.ranked.map((r) => [r.mode.id, r.score] as [string, number]),
+  );
+
+  // STEP 3: semantic ranking against ALL mode metadata + constraints + intent model.
   const intents = detectSpecificIntents(text);
-  const ranked = semanticRank(modes, text, constraints, intents);
+  const ranked = semanticRank(modes, text, constraints, intents, intentBonus);
   const rankedAllowed = ranked.filter((r) => !avoidIds.has(r.mode.id));
   const semanticTop = rankedAllowed[0];
+
 
   // Determine Situation Type (existing detector — used for reason text + fallback).
   const primaryType = types[0];
@@ -1896,20 +1921,40 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
   let typeReason = "";
   let primarySource = "semantic";
 
-  // (a0) Narrow, high-specificity intent claims CORE. Highest-priority core-eligible
-  // intent whose specialist actually exists in the vault wins. Output-only intents
-  // (verbatim, etc.) are never core-eligible and fall through to LAYERS.
+  // (a0) INTENT-FIRST CORE. The mode that best performs the requested OPERATION wins,
+  // regardless of how strongly other modes match the subject matter. Output-control
+  // intents (verbatim etc.) can never claim CORE — they belong in LAYERS.
   let coreIntentKey: string | null = null;
-  for (const intent of intents.active) {
-    if (!intent.coreEligible) continue;
-    const specialist = resolveSpecialist(intent, modes, avoidIds);
-    if (!specialist) continue;
-    primaryMode = specialist;
-    coreIntentKey = intent.key;
-    primarySource = `specific-intent:${intent.key}`;
-    typeReason = `Explicit ${intent.label.toLowerCase()} intent detected — ${specialist.mode} is the narrow specialist for it, so it outranks broader conceptual matches.`;
-    break;
+  let intentCoreCandidates: IntentModeScore[] = [];
+  if (intentModel.coreIntent) {
+    const op = intentModel.coreIntent;
+    intentCoreCandidates = intentModel.ranked.filter(
+      (r) => !avoidIds.has(r.mode.id) && r.matchedIntents.includes(op.id) && r.score > 0,
+    );
+    const winner = intentCoreCandidates[0];
+    if (winner) {
+      primaryMode = winner.mode;
+      coreIntentKey = op.id;
+      primarySource = `intent:${op.id}`;
+      typeReason = `Requested operation is "${op.label}" (topic: ${intentModel.topic.label}). ${winner.mode.mode} performs that operation, so it outranks modes that only match the subject matter.`;
+    }
   }
+
+  // (a1) Legacy narrow-specificity intent layer (kept as a fallback when the intent
+  // model found no capable mode in the vault).
+  if (!primaryMode) {
+    for (const intent of intents.active) {
+      if (!intent.coreEligible) continue;
+      const specialist = resolveSpecialist(intent, modes, avoidIds);
+      if (!specialist) continue;
+      primaryMode = specialist;
+      coreIntentKey = intent.key;
+      primarySource = `specific-intent:${intent.key}`;
+      typeReason = `Explicit ${intent.label.toLowerCase()} intent detected — ${specialist.mode} is the narrow specialist for it, so it outranks broader conceptual matches.`;
+      break;
+    }
+  }
+
 
   // (a) Systems-Architect / workflow-system promotion.
   const systemsCoreSignal = detectSystemsArchitectCore(text);
@@ -2176,6 +2221,42 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
         key: i.key, label: i.label, boost: i.boost, priority: i.priority, coreEligible: i.coreEligible,
       })),
       coreIntent: coreIntentKey,
+
+      // ---- INTENT-FIRST DIAGNOSTIC (why this recommendation won) ----
+      intentModel: {
+        intent: intentModel.dominant
+          ? `${intentModel.dominant.label} (${intentModel.dominant.id}, priority ${intentModel.dominant.priority})`
+          : "none detected",
+        allIntents: intentModel.intents,
+        coreEligibleIntent: intentModel.coreIntent?.id ?? null,
+        topic: intentModel.topic,
+        tone: intentModel.tone,
+        urgency: intentModel.urgency,
+        audience: intentModel.audience,
+        deliverable: intentModel.deliverable,
+        reasoningStyle: intentModel.style,
+        winningModes: intentModel.ranked.slice(0, 6).map((r) => ({
+          mode: r.mode.mode,
+          score: r.score,
+          matchedIntents: r.matchedIntents,
+          reasons: r.reasons,
+          suppressedBy: r.suppressedBy,
+        })),
+        suppressedModes: intentModel.suppressed,
+        runnerUpsLost: intentModel.ranked
+          .slice(1, 6)
+          .map(
+            (r) =>
+              `${r.mode.mode}: ${r.score} pts — ${
+                r.suppressedBy.length
+                  ? `suppressed by ${r.suppressedBy.join(", ")}`
+                  : r.matchedIntents.length
+                    ? `matched ${r.matchedIntents.join(",")} weaker than winner`
+                    : "no requested-operation match (topic only)"
+              }`,
+          ),
+      },
+
       intentSpecificityStrength: intents.strength,
 
       semanticTop10: rankedAllowed.slice(0, 10).map((r) => ({

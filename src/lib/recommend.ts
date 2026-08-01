@@ -2221,6 +2221,42 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
         key: i.key, label: i.label, boost: i.boost, priority: i.priority, coreEligible: i.coreEligible,
       })),
       coreIntent: coreIntentKey,
+
+      // ---- INTENT-FIRST DIAGNOSTIC (why this recommendation won) ----
+      intentModel: {
+        intent: intentModel.dominant
+          ? `${intentModel.dominant.label} (${intentModel.dominant.id}, priority ${intentModel.dominant.priority})`
+          : "none detected",
+        allIntents: intentModel.intents,
+        coreEligibleIntent: intentModel.coreIntent?.id ?? null,
+        topic: intentModel.topic,
+        tone: intentModel.tone,
+        urgency: intentModel.urgency,
+        audience: intentModel.audience,
+        deliverable: intentModel.deliverable,
+        reasoningStyle: intentModel.style,
+        winningModes: intentModel.ranked.slice(0, 6).map((r) => ({
+          mode: r.mode.mode,
+          score: r.score,
+          matchedIntents: r.matchedIntents,
+          reasons: r.reasons,
+          suppressedBy: r.suppressedBy,
+        })),
+        suppressedModes: intentModel.suppressed,
+        runnerUpsLost: intentModel.ranked
+          .slice(1, 6)
+          .map(
+            (r) =>
+              `${r.mode.mode}: ${r.score} pts — ${
+                r.suppressedBy.length
+                  ? `suppressed by ${r.suppressedBy.join(", ")}`
+                  : r.matchedIntents.length
+                    ? `matched ${r.matchedIntents.join(",")} weaker than winner`
+                    : "no requested-operation match (topic only)"
+              }`,
+          ),
+      },
+
       intentSpecificityStrength: intents.strength,
 
       semanticTop10: rankedAllowed.slice(0, 10).map((r) => ({

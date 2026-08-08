@@ -157,7 +157,16 @@ export function ModeProvider({ children }: { children: ReactNode }) {
         persist(next);
       },
       deleteMode: (id: string) => persist(modes.filter((m) => m.id !== id)),
-      resetModes: () => persist(BASELINE_MODES),
+      resetModes: () => {
+        // Drop the user override entirely so the repository baseline is active.
+        try {
+          localStorage.removeItem(MODES_KEY);
+        } catch {
+          /* ignore */
+        }
+        window.dispatchEvent(new CustomEvent(STORE_EVENT, { detail: { key: MODES_KEY } }));
+      },
+
       replaceModes: (next: Mode[]) => persist(validateModeCollection(next)),
       mergeModes: (incoming: Mode[]) => {
         const byId = new Map(modes.map((m) => [m.id, m]));

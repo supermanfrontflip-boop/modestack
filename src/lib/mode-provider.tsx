@@ -62,14 +62,17 @@ function initialize(): ModeInitState {
     };
   }
   if (raw == null) {
-    // First run: seed storage from the repository baseline.
+    // No user override: the repository baseline is authoritative.
+    // Storage is intentionally NOT seeded, so a later baseline update is
+    // picked up instead of being pinned by a stale copy.
     try {
-      localStorage.setItem(MODES_KEY, JSON.stringify(BASELINE_MODES));
+      for (const k of LEGACY_MODES_KEYS) localStorage.removeItem(k);
     } catch {
       /* non-fatal */
     }
     return { modes: BASELINE_MODES, source: "repository", error: null };
   }
+
   try {
     const modes = validateModeCollection(JSON.parse(raw));
     return { modes, source: "stored replacement", error: null };

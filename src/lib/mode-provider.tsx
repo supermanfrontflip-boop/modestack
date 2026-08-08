@@ -15,8 +15,15 @@ import {
   SCHEMA_VERSION,
 } from "./mode-library";
 
-export const MODES_KEY = "pcc.modes.v1";
+/**
+ * Storage key for an intentional user override (CSV Replace / Vault edits).
+ * Bumped to v3 when the authoritative 52-mode repository baseline landed, so
+ * stale 17-mode payloads written by earlier builds can never win again.
+ */
+export const MODES_KEY = "pcc.modes.v3";
+export const LEGACY_MODES_KEYS = ["pcc.modes.v1", "pcc.modes.v2"];
 export const MODES_BACKUP_KEY = "pcc.modes.corrupt-backup";
+
 const STORE_EVENT = "pcc:store";
 
 export type ModeSource = "repository" | "stored replacement" | "fallback";

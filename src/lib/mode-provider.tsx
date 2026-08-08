@@ -15,8 +15,15 @@ import {
   SCHEMA_VERSION,
 } from "./mode-library";
 
-export const MODES_KEY = "pcc.modes.v1";
+/**
+ * Storage key for an intentional user override (CSV Replace / Vault edits).
+ * Bumped to v3 when the authoritative 52-mode repository baseline landed, so
+ * stale 17-mode payloads written by earlier builds can never win again.
+ */
+export const MODES_KEY = "pcc.modes.v3";
+export const LEGACY_MODES_KEYS = ["pcc.modes.v1", "pcc.modes.v2"];
 export const MODES_BACKUP_KEY = "pcc.modes.corrupt-backup";
+
 const STORE_EVENT = "pcc:store";
 
 export type ModeSource = "repository" | "stored replacement" | "fallback";
@@ -55,14 +62,17 @@ function initialize(): ModeInitState {
     };
   }
   if (raw == null) {
-    // First run: seed storage from the repository baseline.
+    // No user override: the repository baseline is authoritative.
+    // Storage is intentionally NOT seeded, so a later baseline update is
+    // picked up instead of being pinned by a stale copy.
     try {
-      localStorage.setItem(MODES_KEY, JSON.stringify(BASELINE_MODES));
+      for (const k of LEGACY_MODES_KEYS) localStorage.removeItem(k);
     } catch {
       /* non-fatal */
     }
     return { modes: BASELINE_MODES, source: "repository", error: null };
   }
+
   try {
     const modes = validateModeCollection(JSON.parse(raw));
     return { modes, source: "stored replacement", error: null };
@@ -147,7 +157,16 @@ export function ModeProvider({ children }: { children: ReactNode }) {
         persist(next);
       },
       deleteMode: (id: string) => persist(modes.filter((m) => m.id !== id)),
-      resetModes: () => persist(BASELINE_MODES),
+      resetModes: () => {
+        // Drop the user override entirely so the repository baseline is active.
+        try {
+          localStorage.removeItem(MODES_KEY);
+        } catch {
+          /* ignore */
+        }
+        window.dispatchEvent(new CustomEvent(STORE_EVENT, { detail: { key: MODES_KEY } }));
+      },
+
       replaceModes: (next: Mode[]) => persist(validateModeCollection(next)),
       mergeModes: (incoming: Mode[]) => {
         const byId = new Map(modes.map((m) => [m.id, m]));

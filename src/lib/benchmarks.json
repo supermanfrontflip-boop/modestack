@@ -47,7 +47,7 @@
       "id": "bench-007",
       "name": "Creative idea generation",
       "situation": "Help me brainstorm strange unexpected metaphors and imagery for a short story about a courthouse at night.",
-      "expectedCore": "Dream Logic Mode",
+      "expectedCore": "Raven Mode",
       "expectedLayers": []
     },
     {

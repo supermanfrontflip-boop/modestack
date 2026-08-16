@@ -1,6 +1,8 @@
 import type { Mode } from "./modes-data";
 import {
   runIntentModel,
+  INTENTS,
+  type IntentDef,
   type IntentModelResult,
   type IntentModeScore,
 } from "./intent-model";
@@ -1775,13 +1777,6 @@ const LAYER_RELATIVE_FLOOR = 0.4;
 /** Fraction of the first layer's score each subsequent layer must reach. */
 const LAYER_MARGINAL_FLOOR = 0.55;
 
-function modeBlob(m: Mode): string {
-  return [m.mode, m.category, m.subcategory, m.purpose, m.coreObjective, m.role]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
-
 /** Negative evidence: the dominant/declared intents suppress this capability. */
 function layerSuppressed(m: Mode, ctx: LayerContext | undefined): string | null {
   if (!ctx) return null;
@@ -1789,7 +1784,7 @@ function layerSuppressed(m: Mode, ctx: LayerContext | undefined): string | null 
   if (im && im.suppressedBy.length) return im.suppressedBy.join(", ");
   const blob = modeBlob(m);
   for (const detected of ctx.intent.intents) {
-    const def = INTENTS.find((d) => d.id === detected.id);
+    const def: IntentDef | undefined = INTENTS.find((d) => d.id === detected.id);
     if (def?.suppress && def.suppress.test(blob)) return `${def.id} suppresses this capability`;
   }
   return null;

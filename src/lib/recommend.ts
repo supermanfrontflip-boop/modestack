@@ -1742,9 +1742,73 @@ function layersIds(primary: Mode, modes: Mode[]): Set<string> {
   return ids;
 }
 
-/** Build stack: constraint-coverage first, then layers compatibility, then role diversity.
- *  Up to 3 layers, each contributing a distinct functional role from CORE and each other
- *  unless a constraint forces a duplicate role. */
+/**
+ * LAYER DISCIPLINE
+ * ================
+ * "A LAYER must contribute a materially distinct and useful function beyond the
+ *  CORE and beyond every other selected LAYER. Absence of a useful LAYER is
+ *  preferable to a weak, redundant, decorative or merely keyword-related LAYER."
+ *
+ * Zero layers is a valid outcome; so is one; so are several when each performs a
+ * genuinely different job. Every admission below is a general rule:
+ *  - positive evidence: the candidate must either cover an active constraint the
+ *    CORE does not cover, or be directly evidenced in the request (its own
+ *    triggers fire, or it matches a detected intent capability).
+ *  - negative evidence: intent-level suppression (adjacent-but-wrong capability)
+ *    disqualifies a candidate outright.
+ *  - functional distinction: never two modes doing the same functional job.
+ *  - relative relevance: a layer must be relevant compared with the CORE, not
+ *    merely non-zero.
+ *  - marginal utility: each extra layer must be roughly as well-evidenced as the
+ *    first one, otherwise the stack stops.
+ */
+
+export interface LayerContext {
+  text: string;
+  intent: IntentModelResult;
+  /** direct trigger-hit score per mode id */
+  triggers: Map<string, number>;
+}
+
+/** Fraction of the CORE's semantic score a layer must reach to count as relevant. */
+const LAYER_RELATIVE_FLOOR = 0.4;
+/** Fraction of the first layer's score each subsequent layer must reach. */
+const LAYER_MARGINAL_FLOOR = 0.55;
+
+function modeBlob(m: Mode): string {
+  return [m.mode, m.category, m.subcategory, m.purpose, m.coreObjective, m.role]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+/** Negative evidence: the dominant/declared intents suppress this capability. */
+function layerSuppressed(m: Mode, ctx: LayerContext | undefined): string | null {
+  if (!ctx) return null;
+  const im = ctx.intent.ranked.find((r) => r.mode.id === m.id);
+  if (im && im.suppressedBy.length) return im.suppressedBy.join(", ");
+  const blob = modeBlob(m);
+  for (const detected of ctx.intent.intents) {
+    const def = INTENTS.find((d) => d.id === detected.id);
+    if (def?.suppress && def.suppress.test(blob)) return `${def.id} suppresses this capability`;
+  }
+  return null;
+}
+
+/** Positive evidence that the user's request actually calls for this capability. */
+function layerEvidence(m: Mode, ctx: LayerContext | undefined): string | null {
+  if (!ctx) return "no intent context";
+  const trig = ctx.triggers.get(m.id) ?? 0;
+  if (trig > 0) return `own triggers fire in the request (+${trig})`;
+  const im = ctx.intent.ranked.find((r) => r.mode.id === m.id);
+  if (im && im.score > 0 && im.matchedIntents.length) {
+    return `matches detected intent ${im.matchedIntents.join("/")} (+${im.score})`;
+  }
+  return null;
+}
+
+/** Build stack under LAYER DISCIPLINE. Constraint coverage first, then evidenced
+ *  complementary capabilities. Never pads the stack to reach a quota. */
 function buildSemanticStack(
   primary: Mode,
   modes: Mode[],
@@ -1752,6 +1816,7 @@ function buildSemanticStack(
   constraints: ConstraintSignal[],
   avoidIds: Set<string>,
   maxLayers = 3,
+  ctx?: LayerContext,
 ): { supporting: Mode[]; team: TeamMember[]; stackReasons: string[]; layerCoverage: Record<string, string[]> } {
   const used = new Set<string>([primary.id]);
   const supporting: Mode[] = [];
@@ -1762,17 +1827,52 @@ function buildSemanticStack(
   const stackCompat = layersIds(primary, modes);
   const primaryFn = functionalRole(primary);
   const usedFnRoles = new Set<FunctionalRole>([primaryFn]);
+  const rejected: string[] = [];
+  let firstLayerScore = 0;
 
-  const addLayer = (m: Mode, reason: string, covers: string[] = []) => {
+  const addLayer = (m: Mode, reason: string, score: number, covers: string[] = []) => {
     supporting.push(m);
     used.add(m.id);
     usedFnRoles.add(functionalRole(m));
     stackReasons.push(reason);
     layerCoverage[m.id] = covers;
+    if (supporting.length === 1) firstLayerScore = Math.max(score, 1);
   };
 
-  // 1. For each active constraint NOT already addressed by primary,
-  //    add the top-scored mode that addresses it. Constraints override role diversity.
+  const relevanceFloor = Math.max(6, Math.round((primaryScore?.score ?? 0) * LAYER_RELATIVE_FLOOR));
+
+  /** Shared admission gate for every non-constraint candidate. */
+  const admits = (r: SemanticScore, minScore: number): { ok: boolean; why: string } => {
+    if (used.has(r.mode.id) || avoidIds.has(r.mode.id)) return { ok: false, why: "already used" };
+    const fn = functionalRole(r.mode);
+    if (usedFnRoles.has(fn)) {
+      rejected.push(`${r.mode.mode} rejected: duplicates the [${fn}] job already covered`);
+      return { ok: false, why: "duplicate function" };
+    }
+    if (r.score < minScore) {
+      rejected.push(`${r.mode.mode} rejected: too weakly related (score ${r.score} < ${minScore})`);
+      return { ok: false, why: "below relevance floor" };
+    }
+    const neg = layerSuppressed(r.mode, ctx);
+    if (neg) {
+      rejected.push(`${r.mode.mode} rejected: negative evidence (${neg})`);
+      return { ok: false, why: "suppressed" };
+    }
+    const pos = layerEvidence(r.mode, ctx);
+    if (!pos) {
+      rejected.push(`${r.mode.mode} rejected: no direct evidence the request needs it`);
+      return { ok: false, why: "no positive evidence" };
+    }
+    if (supporting.length && r.score < firstLayerScore * LAYER_MARGINAL_FLOOR) {
+      rejected.push(
+        `${r.mode.mode} rejected: marginal utility too low next to the first layer (${r.score} vs ${firstLayerScore})`,
+      );
+      return { ok: false, why: "marginal" };
+    }
+    return { ok: true, why: pos };
+  };
+
+  // 1. Constraints the CORE does not itself satisfy are genuine missing functions.
   for (const c of constraints) {
     if (supporting.length >= maxLayers) break;
     if (primaryAddressed.has(c.key)) continue;
@@ -1787,61 +1887,51 @@ function buildSemanticStack(
       addLayer(
         cand.mode,
         `${cand.mode.mode} addresses ${c.label} [${functionalRole(cand.mode)}] (score ${cand.score})`,
+        cand.score,
         [c.label],
       );
     }
   }
 
-  // 2. Fill from layers-compatibility list with strong semantic score AND a distinct
-  //    functional role from CORE and already-picked layers.
+  // 2. Capabilities the CORE declares as compatible layers, when the request
+  //    itself evidences them.
   if (supporting.length < maxLayers) {
     for (const r of ranked) {
       if (supporting.length >= maxLayers) break;
-      if (used.has(r.mode.id) || avoidIds.has(r.mode.id)) continue;
       if (!stackCompat.has(r.mode.id)) continue;
-      if (r.score < 4) continue;
-      const fn = functionalRole(r.mode);
-      if (usedFnRoles.has(fn)) continue;
+      const verdict = admits(r, Math.max(4, Math.round(relevanceFloor * 0.7)));
+      if (!verdict.ok) continue;
       addLayer(
         r.mode,
-        `${r.mode.mode} is layers-compatible, distinct role [${fn}], semantic score ${r.score}`,
+        `${r.mode.mode} is a declared companion of ${primary.mode}, adds [${functionalRole(r.mode)}], ${verdict.why}`,
+        r.score,
       );
     }
   }
 
-  // 3. Fill remaining slots by functional-role diversity from top scorers.
+  // 3. Any other evidenced capability performing a job nobody in the stack does.
   if (supporting.length < maxLayers) {
     for (const r of ranked) {
       if (supporting.length >= maxLayers) break;
-      if (used.has(r.mode.id) || avoidIds.has(r.mode.id)) continue;
-      if (r.score < 6) continue;
-      const fn = functionalRole(r.mode);
-      if (usedFnRoles.has(fn)) continue;
+      const verdict = admits(r, relevanceFloor);
+      if (!verdict.ok) continue;
       addLayer(
         r.mode,
-        `${r.mode.mode} adds a distinct functional role [${fn}] (score ${r.score})`,
+        `${r.mode.mode} adds a distinct [${functionalRole(r.mode)}] function, ${verdict.why}`,
+        r.score,
       );
     }
   }
 
-  // 4. If nothing cleared the thresholds, allow ONE genuinely complementary layer:
-  //    positive semantic score and a functional role the CORE does not already cover.
-  //    Still no layer at all when nothing scores above zero.
+  // No padding pass: zero layers is a legitimate, preferred outcome when nothing
+  // clears the discipline gate.
   if (!supporting.length) {
-    const cand = ranked.find(
-      (r) =>
-        !used.has(r.mode.id) &&
-        !avoidIds.has(r.mode.id) &&
-        r.score > 0 &&
-        !usedFnRoles.has(functionalRole(r.mode)),
+    stackReasons.push(
+      `No layer added: nothing contributed a distinct, evidenced function beyond ${primary.mode}.`,
     );
-    if (cand) {
-      addLayer(
-        cand.mode,
-        `${cand.mode.mode} is the only mode adding a distinct function [${functionalRole(cand.mode)}] the CORE lacks (score ${cand.score})`,
-      );
-    }
   }
+  if (rejected.length) stackReasons.push(...rejected.slice(0, 6));
+
 
   // Layer integrity: CORE can never be one of its own LAYERS, and no duplicates.
   const seen = new Set<string>([primary.id]);

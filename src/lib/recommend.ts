@@ -2113,6 +2113,11 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
 
   // STEP 5: build LAYERS. Constraints not covered by CORE come first, then
   // layers-compatibility, then functional-role diversity. Up to 3 layers.
+  const layerCtx: LayerContext = {
+    text,
+    intent: intentModel,
+    triggers: new Map(scored.map((s) => [s.mode.id, s.score])),
+  };
   const { supporting, team, stackReasons, layerCoverage } = buildSemanticStack(
     primaryMode,
     modes,
@@ -2120,6 +2125,7 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
     constraints,
     avoidIds,
     3,
+    layerCtx,
   );
 
 

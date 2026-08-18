@@ -662,11 +662,24 @@ interface Scored {
   hits: string[];
 }
 
+const escapeRx = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Trigger phrases must match whole words: substring matching produced phantom
+ * evidence ("flow" inside "workflow", "tale" inside "details", "build" inside
+ * "building"), which let unrelated modes qualify as layers.
+ */
+function triggerFires(trigger: string, text: string): boolean {
+  const t = trigger.trim().toLowerCase();
+  if (!t) return false;
+  return new RegExp(`(^|[^a-z0-9])${escapeRx(t)}([^a-z0-9]|$)`, "i").test(text);
+}
+
 function scoreMode(mode: Mode, text: string): Scored {
   const hits: string[] = [];
   let score = 0;
   for (const t of mode.triggers) {
-    if (text.includes(t)) {
+    if (triggerFires(t, text)) {
       hits.push(t);
       score += t.length > 5 ? 3 : 2;
     }

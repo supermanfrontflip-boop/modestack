@@ -313,6 +313,23 @@ export const INTENTS: IntentDef[] = [
     suppress: /shadow|adversar|roast|red ?team/i,
   },
   {
+    id: "teach_simple",
+    label: "explain in the simplest possible terms",
+    priority: 66,
+    class: "operation",
+    patterns: [
+      /\blike i'?m (five|5|ten|new|a beginner|a kid)\b|\beli5\b/,
+      /simplest (possible )?(terms|words|way|explanation)/,
+      /dumb (it|this) down|in kid terms|as if i knew nothing/,
+    ],
+    style: [/\bsimple\b/, /\bplain\b/],
+    capabilityName: /kindergarten|simpl/i,
+    capabilityMeta: /simplest|plain terms|beginner|analogy/i,
+    // Depth-teaching capabilities (mental models, mastery, curriculum) are the
+    // opposite of radical simplification.
+    suppress: /professor|mastery|mental model|curriculum|thorough/i,
+  },
+  {
     id: "teach_concept",
     label: "teach / explain a concept",
     priority: 64,
@@ -320,16 +337,16 @@ export const INTENTS: IntentDef[] = [
     patterns: [
       /teach me\b|help me understand\b/,
       /explain (how|why|what) [\w\s]{0,30}\b(works|means|happens)\b/,
-      /\blike i'?m (five|5|new|a beginner)\b|\beli5\b/,
+      /\bmental model|\bthoroughly\b|\bin depth\b|\bdeep(ly)? understand/,
       /\bfrom scratch\b|\bfundamentals\b|\bbasics of\b/,
     ],
     // Concept teachers first: capability alternatives are read most-specific-first,
     // so an interface tutor must not out-specify a conceptual teacher here.
-    capabilityName: /kindergarten|professor|coach|snail|teach|tutor/i,
+    capabilityName: /professor|coach|snail|teach|tutor/i,
     capabilityMeta: /teaching|learning|step[- ]by[- ]step|explanation|pedagog/i,
     // Teaching a CONCEPT is a different operation from guiding someone through a
     // device or app interface; interface-tutor capabilities are adjacent-but-wrong.
-    suppress: /platform tutor|interface|on[- ]screen|device|app screen|software navigation/i,
+    suppress: /platform tutor|interface|on[- ]screen|device|app screen|software navigation|simplest|kindergarten/i,
   },
   {
     id: "verbatim_output",

@@ -323,7 +323,9 @@ export const INTENTS: IntentDef[] = [
       /\blike i'?m (five|5|new|a beginner)\b|\beli5\b/,
       /\bfrom scratch\b|\bfundamentals\b|\bbasics of\b/,
     ],
-    capabilityName: /snail|tutor|teach|kindergarten|gomer|professor/i,
+    // Concept teachers first: capability alternatives are read most-specific-first,
+    // so an interface tutor must not out-specify a conceptual teacher here.
+    capabilityName: /kindergarten|professor|coach|snail|teach|tutor/i,
     capabilityMeta: /teaching|learning|step[- ]by[- ]step|explanation|pedagog/i,
     // Teaching a CONCEPT is a different operation from guiding someone through a
     // device or app interface; interface-tutor capabilities are adjacent-but-wrong.

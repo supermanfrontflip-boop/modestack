@@ -138,6 +138,72 @@ export const INTENTS: IntentDef[] = [
       /kindergarten|snail|tutor|teach|lesson|curricul|beginner|eli5|gomer|builder|construct|assemble|architect|scaffold/i,
   },
   {
+    id: "coordinate_fronts",
+    label: "coordinate multiple fronts",
+    priority: 93,
+    class: "operation",
+    patterns: [
+      /coordinate [\w\s]{0,30}(across|between|and)/,
+      /multiple (fronts|workstreams|tracks|teams|projects)/,
+      /(across|between) [\w\s]{0,30}\b(marketing|pricing|staffing|hiring|timelines|departments|channels|teams)\b/,
+      /(launch|rollout|roll out|campaign) [\w\s]{0,30}\b(across|plan|timeline|timelines)\b/,
+      /juggl\w+ [\w\s]{0,20}(at once|simultaneously|priorities)/,
+    ],
+    style: [/\bcampaign\b/, /\bresources\b/, /\bfronts\b/],
+    capabilityName: /general|commander|campaign|captain/i,
+    capabilityMeta: /coordinat|multiple fronts|resources|timelines|objectives|command/i,
+    // A multi-front coordination ask is not itself a teardown, a pitch, or a rewrite.
+    suppress: /roast|hype|comedy|freestyle|verbatim/i,
+  },
+  {
+    id: "worldbuild",
+    label: "build a fictional world / culture",
+    priority: 89,
+    class: "operation",
+    patterns: [
+      /world[- ]?build\w*/,
+      /internally consistent [\w\s]{0,20}(world|culture|society|religion|system)/,
+      /(build|create|invent|design) (a|an|my|the) [\w\s]{0,24}\b(world|culture|society|civilization|religion|magic system|kingdom|planet)\b/,
+      /\b(kinship|rituals?|customs|cosmology|pantheon|lore)\b/,
+    ],
+    style: [/\bnovel\b/, /\bfiction\b/, /\bsetting\b/],
+    capabilityName: /worldbuilder|world|lore/i,
+    capabilityMeta: /worldbuilding|fictional world|culture|setting consistency/i,
+    suppress: /legal|statute|judicial|operator|architect|complian|negotiat/i,
+  },
+  {
+    id: "mythmake",
+    label: "give mythic / legendary weight",
+    priority: 88,
+    class: "operation",
+    patterns: [
+      /\bmythic\b|\bmythical\b|\bmythology\b|\bmyth\b/,
+      /\blegend\b|\blegendary\b|\bfolklore\b|\bfable\b|\bparable\b/,
+      /(ancient|timeless|generational|handed down) (curse|story|weight|truth|tale)/,
+      /(origin|creation) (story|myth)/,
+    ],
+    style: [/\bsymbol\b/, /\bresonance\b/, /\bsacred\b/],
+    capabilityName: /mythmaker|myth|legend/i,
+    capabilityMeta: /myth|legend|symbol|timeless|resonance/i,
+    suppress: /legal|statute|judicial|research|complian|operator/i,
+  },
+  {
+    id: "lyrical_language",
+    label: "write lyrical / dreamlike language",
+    priority: 87,
+    class: "operation",
+    patterns: [
+      /dream[- ]?like|dream logic|oneiric/,
+      /\blyric(al|s)?\b|\bpoem\b|\bpoetry\b|\bverse\b/,
+      /(layered|shifting|hallucinat\w+|surreal|psychedelic) (imagery|language|perception|logic)/,
+      /\bsurreal\b|\btrance\b/,
+    ],
+    style: [/\bimagery\b/, /\bmetaphor\b/, /\batmosphere\b/],
+    capabilityName: /dream logic|dream|lucy|lyric/i,
+    capabilityMeta: /lyrical|dreamlike|perceptual|psychedelic|literary language/i,
+    suppress: /legal|statute|judicial|operator|architect|complian/i,
+  },
+  {
     id: "ideate",
     label: "brainstorm / generate imagery",
     priority: 86,
@@ -156,6 +222,26 @@ export const INTENTS: IntentDef[] = [
     // domain-expert modes. The operation is imagery, not law/medicine/policing.
     suppress:
       /judge|judicial|legal|statute|case law|litigat|detective|investigat|forensic|complian|negotiat|audit|regulat/i,
+  },
+  {
+    id: "forecast",
+    label: "project consequences forward",
+    priority: 82,
+    class: "operation",
+    patterns: [
+      /second[- ]order|downstream (effect|effects|consequence|consequences)/,
+      /ripple effects?|knock[- ]on effects?/,
+      /what (happens|breaks|changes) (if|when) i\b/,
+      /project (this|it|that) forward|play (this|it) forward/,
+      /likely (outcome|outcomes|consequences|effects)\b/,
+      /\b(long[- ]term|down the road|a year from now) (effect|effects|impact|consequences)\b/,
+    ],
+    style: [/\bforecast\b/, /\bconsequences\b/, /\bfuture\b/],
+    capabilityName: /oracle|forecast|futur|foresight/i,
+    capabilityMeta: /second[- ]order|project.{0,12}forward|foresight|consequence|scenario/i,
+    // Anticipating an opponent's counter-moves is a different operation from
+    // projecting the consequences of one's own decision.
+    suppress: /moves ahead|anticipate reactions|opponent|adversar|negotiat/i,
   },
   {
     id: "research",
@@ -227,6 +313,23 @@ export const INTENTS: IntentDef[] = [
     suppress: /shadow|adversar|roast|red ?team/i,
   },
   {
+    id: "teach_simple",
+    label: "explain in the simplest possible terms",
+    priority: 66,
+    class: "operation",
+    patterns: [
+      /\blike i'?m (five|5|ten|new|a beginner|a kid)\b|\beli5\b/,
+      /simplest (possible )?(terms|words|way|explanation)/,
+      /dumb (it|this) down|in kid terms|as if i knew nothing/,
+    ],
+    style: [/\bsimple\b/, /\bplain\b/],
+    capabilityName: /kindergarten|simpl/i,
+    capabilityMeta: /simplest|plain terms|beginner|analogy/i,
+    // Depth-teaching capabilities (mental models, mastery, curriculum) are the
+    // opposite of radical simplification.
+    suppress: /professor|mastery|mental model|curriculum|thorough/i,
+  },
+  {
     id: "teach_concept",
     label: "teach / explain a concept",
     priority: 64,
@@ -234,11 +337,16 @@ export const INTENTS: IntentDef[] = [
     patterns: [
       /teach me\b|help me understand\b/,
       /explain (how|why|what) [\w\s]{0,30}\b(works|means|happens)\b/,
-      /\blike i'?m (five|5|new|a beginner)\b|\beli5\b/,
+      /\bmental model|\bthoroughly\b|\bin depth\b|\bdeep(ly)? understand/,
       /\bfrom scratch\b|\bfundamentals\b|\bbasics of\b/,
     ],
-    capabilityName: /snail|tutor|teach|kindergarten|gomer|professor/i,
+    // Concept teachers first: capability alternatives are read most-specific-first,
+    // so an interface tutor must not out-specify a conceptual teacher here.
+    capabilityName: /professor|coach|snail|teach|tutor/i,
     capabilityMeta: /teaching|learning|step[- ]by[- ]step|explanation|pedagog/i,
+    // Teaching a CONCEPT is a different operation from guiding someone through a
+    // device or app interface; interface-tutor capabilities are adjacent-but-wrong.
+    suppress: /platform tutor|interface|on[- ]screen|device|app screen|software navigation|simplest|kindergarten/i,
   },
   {
     id: "verbatim_output",

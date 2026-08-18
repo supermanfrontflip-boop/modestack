@@ -662,11 +662,24 @@ interface Scored {
   hits: string[];
 }
 
+const escapeRx = (v: string) => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Trigger phrases must match whole words: substring matching produced phantom
+ * evidence ("flow" inside "workflow", "tale" inside "details", "build" inside
+ * "building"), which let unrelated modes qualify as layers.
+ */
+function triggerFires(trigger: string, text: string): boolean {
+  const t = trigger.trim().toLowerCase();
+  if (!t) return false;
+  return new RegExp(`(^|[^a-z0-9])${escapeRx(t)}([^a-z0-9]|$)`, "i").test(text);
+}
+
 function scoreMode(mode: Mode, text: string): Scored {
   const hits: string[] = [];
   let score = 0;
   for (const t of mode.triggers) {
-    if (text.includes(t)) {
+    if (triggerFires(t, text)) {
       hits.push(t);
       score += t.length > 5 ? 3 : 2;
     }
@@ -1770,6 +1783,25 @@ export interface LayerContext {
   intent: IntentModelResult;
   /** direct trigger-hit score per mode id */
   triggers: Map<string, number>;
+  /** the actual trigger phrases that fired, per mode id */
+  triggerHits: Map<string, string[]>;
+  /** how many modes in the library declare each trigger phrase (distinctiveness) */
+  triggerShare: Map<string, number>;
+}
+
+/**
+ * Did the request explicitly ask for THIS capability? Only distinctive declared
+ * vocabulary counts: a multi-word trigger phrase, or a single term that few other
+ * modes claim. Generic topic nouns shared across many modes are not a request.
+ */
+function explicitlyRequested(m: Mode, ctx: LayerContext | undefined): string | null {
+  if (!ctx) return null;
+  const hits = ctx.triggerHits.get(m.id) ?? [];
+  for (const h of hits) {
+    const distinctive = h.includes(" ") || (ctx.triggerShare.get(h) ?? 9) <= 1;
+    if (distinctive) return h;
+  }
+  return null;
 }
 
 /** Fraction of the CORE's semantic score a layer must reach to count as relevant. */
@@ -1834,7 +1866,12 @@ function buildSemanticStack(
     if (supporting.length === 1) firstLayerScore = Math.max(score, 1);
   };
 
-  const relevanceFloor = Math.max(6, Math.round((primaryScore?.score ?? 0) * LAYER_RELATIVE_FLOOR));
+  // Relative to the CORE, but capped: specialist CORE boosts can be very large and
+  // must not make every other capability look irrelevant by comparison.
+  const relevanceFloor = Math.min(
+    14,
+    Math.max(6, Math.round((primaryScore?.score ?? 0) * LAYER_RELATIVE_FLOOR)),
+  );
 
   /** Shared admission gate for every non-constraint candidate. */
   const admits = (r: SemanticScore, minScore: number): { ok: boolean; why: string } => {
@@ -1844,7 +1881,12 @@ function buildSemanticStack(
       rejected.push(`${r.mode.mode} rejected: duplicates the [${fn}] job already covered`);
       return { ok: false, why: "duplicate function" };
     }
-    if (r.score < minScore) {
+    // Explicit request evidence: when the candidate's own declared vocabulary appears
+    // in the request, the user asked for that capability directly, so it qualifies
+    // independently of how it compares with the CORE's broad semantic score.
+    const askedFor = explicitlyRequested(r.mode, ctx);
+    const directlyAsked = askedFor !== null;
+    if (r.score < minScore && !directlyAsked) {
       rejected.push(`${r.mode.mode} rejected: too weakly related (score ${r.score} < ${minScore})`);
       return { ok: false, why: "below relevance floor" };
     }
@@ -1858,7 +1900,7 @@ function buildSemanticStack(
       rejected.push(`${r.mode.mode} rejected: no direct evidence the request needs it`);
       return { ok: false, why: "no positive evidence" };
     }
-    if (supporting.length && r.score < firstLayerScore * LAYER_MARGINAL_FLOOR) {
+    if (supporting.length && !directlyAsked && r.score < firstLayerScore * LAYER_MARGINAL_FLOOR) {
       rejected.push(
         `${r.mode.mode} rejected: marginal utility too low next to the first layer (${r.score} vs ${firstLayerScore})`,
       );
@@ -1905,8 +1947,15 @@ function buildSemanticStack(
   }
 
   // 3. Any other evidenced capability performing a job nobody in the stack does.
+  //    Capabilities the request explicitly named are considered before the rest.
   if (supporting.length < maxLayers) {
-    for (const r of ranked) {
+    const ordered = [...ranked].sort((a, b) => {
+      const ea = explicitlyRequested(a.mode, ctx) ? 1 : 0;
+      const eb = explicitlyRequested(b.mode, ctx) ? 1 : 0;
+      if (ea !== eb) return eb - ea;
+      return b.score - a.score;
+    });
+    for (const r of ordered) {
       if (supporting.length >= maxLayers) break;
       const verdict = admits(r, relevanceFloor);
       if (!verdict.ok) continue;
@@ -2113,10 +2162,16 @@ export function recommend(situation: string, modes: Mode[]): Recommendation | nu
 
   // STEP 5: build LAYERS. Constraints not covered by CORE come first, then
   // layers-compatibility, then functional-role diversity. Up to 3 layers.
+  const triggerShare = new Map<string, number>();
+  for (const m of modes) {
+    for (const t of m.triggers) triggerShare.set(t, (triggerShare.get(t) ?? 0) + 1);
+  }
   const layerCtx: LayerContext = {
     text,
     intent: intentModel,
     triggers: new Map(scored.map((s) => [s.mode.id, s.score])),
+    triggerHits: new Map(scored.map((s) => [s.mode.id, s.hits])),
+    triggerShare,
   };
   const { supporting, team, stackReasons, layerCoverage } = buildSemanticStack(
     primaryMode,

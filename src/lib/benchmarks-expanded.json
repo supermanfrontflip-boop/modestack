@@ -24,7 +24,7 @@
       "situation": "Teach me thoroughly how the hearsay exception framework works with mental models and connected ideas.",
       "expectedCore": "Professor Mode",
       "expectedLayers": [],
-      "layerMode": "none"
+      "layerMode": "any"
     },
     {
       "id": "gen-004",
@@ -40,7 +40,7 @@
       "situation": "Turn this dispatch plan into a repeatable daily operational workflow with checklists and handoffs.",
       "expectedCore": "Operator Mode",
       "expectedLayers": [],
-      "layerMode": "any"
+      "layerMode": "none"
     },
     {
       "id": "gen-006",
@@ -64,7 +64,7 @@
       "situation": "Write a mythic short story where a subpoena becomes an ancient curse handed down through a family.",
       "expectedCore": "Mythmaker Mode",
       "expectedLayers": [],
-      "layerMode": "any"
+      "layerMode": "none"
     },
     {
       "id": "gen-009",
@@ -144,7 +144,7 @@
       "situation": "What are the likely second-order effects and downstream consequences if I raise my rates twenty percent next quarter?",
       "expectedCore": "Oracle Mode",
       "expectedLayers": [],
-      "layerMode": "any"
+      "layerMode": "none"
     }
   ]
 }

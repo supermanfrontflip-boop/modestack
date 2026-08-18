@@ -1834,7 +1834,12 @@ function buildSemanticStack(
     if (supporting.length === 1) firstLayerScore = Math.max(score, 1);
   };
 
-  const relevanceFloor = Math.max(6, Math.round((primaryScore?.score ?? 0) * LAYER_RELATIVE_FLOOR));
+  // Relative to the CORE, but capped: specialist CORE boosts can be very large and
+  // must not make every other capability look irrelevant by comparison.
+  const relevanceFloor = Math.min(
+    14,
+    Math.max(6, Math.round((primaryScore?.score ?? 0) * LAYER_RELATIVE_FLOOR)),
+  );
 
   /** Shared admission gate for every non-constraint candidate. */
   const admits = (r: SemanticScore, minScore: number): { ok: boolean; why: string } => {

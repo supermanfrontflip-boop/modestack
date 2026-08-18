@@ -1849,7 +1849,11 @@ function buildSemanticStack(
       rejected.push(`${r.mode.mode} rejected: duplicates the [${fn}] job already covered`);
       return { ok: false, why: "duplicate function" };
     }
-    if (r.score < minScore) {
+    // Explicit request evidence: when the candidate's own declared vocabulary appears
+    // in the request, the user asked for that capability directly, so it qualifies
+    // independently of how it compares with the CORE's broad semantic score.
+    const directlyAsked = (ctx?.triggers.get(r.mode.id) ?? 0) >= 3;
+    if (r.score < minScore && !directlyAsked) {
       rejected.push(`${r.mode.mode} rejected: too weakly related (score ${r.score} < ${minScore})`);
       return { ok: false, why: "below relevance floor" };
     }
@@ -1863,7 +1867,7 @@ function buildSemanticStack(
       rejected.push(`${r.mode.mode} rejected: no direct evidence the request needs it`);
       return { ok: false, why: "no positive evidence" };
     }
-    if (supporting.length && r.score < firstLayerScore * LAYER_MARGINAL_FLOOR) {
+    if (supporting.length && !directlyAsked && r.score < firstLayerScore * LAYER_MARGINAL_FLOOR) {
       rejected.push(
         `${r.mode.mode} rejected: marginal utility too low next to the first layer (${r.score} vs ${firstLayerScore})`,
       );

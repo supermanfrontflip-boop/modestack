@@ -28,8 +28,9 @@ export function AppShell() {
               PROMPT // COMMAND CENTER
             </div>
             <div className="text-sm mono glow-text text-primary truncate">
-              {pathname === "/" ? "RECOMMEND" : pathname === "/vault" ? "MODE VAULT" : pathname === "/favorites" ? "FAVORITE STACKS" : pathname === "/tests" ? "REGRESSION TESTS" : "STATION"}
+              {pathname === "/" ? "RECOMMEND" : pathname === "/vault" ? "MODE VAULT" : pathname === "/favorites" ? "FAVORITE STACKS" : pathname === "/tests" ? "REGRESSION TESTS" : pathname === "/privacy" ? "PRIVACY & SUPPORT" : "STATION"}
             </div>
+
           </div>
           <div className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />

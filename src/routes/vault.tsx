@@ -154,10 +154,10 @@ function VaultPage() {
           <Button onClick={openNew} className="flex-1 mono tracking-wider">
             <Plus className="h-4 w-4 mr-1.5" /> NEW MODE
           </Button>
-          <Button variant="outline" size="icon" onClick={onImportClick} title="Import CSV">
+          <Button variant="outline" size="icon" onClick={onImportClick} title="Import CSV" aria-label="Import modes from CSV">
             <Upload className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={onExport} title="Export CSV">
+          <Button variant="outline" size="icon" onClick={onExport} title="Export CSV" aria-label="Export modes to CSV">
             <Download className="h-4 w-4" />
           </Button>
           <Button
@@ -171,7 +171,7 @@ function VaultPage() {
 
 <AlertDialog>
   <AlertDialogTrigger asChild>
-  <Button variant="outline" size="icon" title="Reset to seed">
+  <Button variant="outline" size="icon" title="Reset to repository baseline" aria-label="Reset vault to repository baseline">
     <RotateCcw className="h-4 w-4" />
   </Button>
 </AlertDialogTrigger>

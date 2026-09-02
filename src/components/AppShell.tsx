@@ -15,7 +15,7 @@ export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-dvh flex flex-col">
       <header className="sticky top-0 z-30 backdrop-blur-md bg-background/70 border-b border-border">
         <div className="mx-auto max-w-2xl px-4 py-3 flex items-center gap-3">
           <div className="hud-corner relative h-9 w-9 grid place-items-center border border-border bg-card">

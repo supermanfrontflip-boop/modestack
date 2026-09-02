@@ -1,5 +1,5 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
-import { Crosshair, Database, Star, Radar, FlaskConical } from "lucide-react";
+import { Crosshair, Database, Star, Radar, FlaskConical, ShieldCheck } from "lucide-react";
 import { Toaster } from "@/components/ui/sonner";
 import { ModeProvider } from "@/lib/mode-provider";
 
@@ -9,7 +9,9 @@ const navItems = [
   { to: "/vault", label: "Vault", icon: Database },
   { to: "/favorites", label: "Stacks", icon: Star },
   { to: "/tests", label: "Tests", icon: FlaskConical },
+  { to: "/privacy", label: "Privacy", icon: ShieldCheck },
 ] as const;
+
 
 export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });

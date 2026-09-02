@@ -37,34 +37,39 @@ export function AppShell() {
         <div className="scan-line" />
       </header>
 
-      <main className="flex-1 mx-auto w-full max-w-2xl px-4 pt-5 pb-28">
+      <main className="flex-1 mx-auto w-full max-w-2xl px-4 pt-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))]">
         <ModeProvider>
           <Outlet />
         </ModeProvider>
       </main>
 
 
-      <nav className="fixed bottom-0 inset-x-0 z-30 border-t border-border bg-background/85 backdrop-blur-md">
-        <div className="mx-auto max-w-2xl grid grid-cols-4">
+      <nav
+        aria-label="Primary"
+        className="fixed bottom-0 inset-x-0 z-30 border-t border-border bg-background/85 backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
+      >
+        <div className="mx-auto max-w-2xl grid grid-cols-5">
           {navItems.map(({ to, label, icon: Icon }) => {
             const active = pathname === to;
             return (
               <Link
                 key={to}
                 to={to}
-                className={`flex flex-col items-center justify-center gap-1 py-3 mono text-[10px] tracking-widest transition-colors ${
+                aria-current={active ? "page" : undefined}
+                className={`flex flex-col items-center justify-center gap-1 min-h-14 py-3 mono text-[10px] tracking-widest transition-colors ${
                   active
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Icon className={`h-5 w-5 ${active ? "drop-shadow-[0_0_8px_var(--color-hud)]" : ""}`} />
+                <Icon aria-hidden="true" className={`h-5 w-5 ${active ? "drop-shadow-[0_0_8px_var(--color-hud)]" : ""}`} />
                 {label.toUpperCase()}
               </Link>
             );
           })}
         </div>
       </nav>
+
 
       <Toaster />
     </div>

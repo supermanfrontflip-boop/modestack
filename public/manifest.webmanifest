@@ -1,0 +1,17 @@
+{
+  "name": "ModeStack — Prompt Command Center",
+  "short_name": "ModeStack",
+  "description": "Choose the right AI thinking mode before you write a prompt.",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a1520",
+  "theme_color": "#0a1520",
+  "icons": [
+    { "src": "/app-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

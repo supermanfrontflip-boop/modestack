@@ -96,14 +96,14 @@ function HomePage() {
             value={situation}
             onChange={(e) => setSituation(e.target.value)}
             placeholder="Describe the mission, the constraint, or the question…"
-            className="min-h-[110px] bg-input/60 border-border focus-visible:ring-primary pr-12"
+            className="min-h-[110px] bg-input/60 border-border focus-visible:ring-primary pr-14"
           />
           <button
             type="button"
             onClick={toggleMic}
             aria-label={listening ? "Stop voice input" : "Start voice input"}
             aria-pressed={listening}
-            className={`absolute top-2 right-2 inline-flex items-center justify-center h-9 w-9 rounded-md border transition-colors ${
+            className={`absolute top-2 right-2 inline-flex items-center justify-center h-11 w-11 rounded-md border transition-colors ${
               listening
                 ? "border-destructive/60 bg-destructive/10 text-destructive animate-pulse"
                 : "border-border bg-muted/40 text-muted-foreground hover:text-primary hover:border-primary/50"
@@ -122,7 +122,7 @@ function HomePage() {
             <button
               key={ex}
               onClick={() => setSituation(ex)}
-              className="text-[10px] mono tracking-wider rounded-sm border border-border bg-muted/40 px-2 py-1 text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
+              className="text-[10px] mono tracking-wider rounded-sm border border-border bg-muted/40 px-3 min-h-10 text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
             >
               {ex}
             </button>

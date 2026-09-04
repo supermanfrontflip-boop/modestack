@@ -21,7 +21,7 @@ export const Route = createFileRoute("/privacy")({
   component: PrivacyPage,
 });
 
-const SUPPORT_EMAIL = "support@modestack.app";
+const SUPPORT_EMAIL = "ModeStackApp@gmail.com";
 
 function PrivacyPage() {
   return (

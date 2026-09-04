@@ -21,7 +21,7 @@ export const Route = createFileRoute("/privacy")({
   component: PrivacyPage,
 });
 
-const SUPPORT_EMAIL = "support@modestack.app";
+const SUPPORT_EMAIL = "ModeStackApp@gmail.com";
 
 function PrivacyPage() {
   return (
@@ -37,42 +37,49 @@ function PrivacyPage() {
       </section>
 
       <section className="hud-panel p-4 space-y-3 text-sm leading-relaxed">
-        <h2 className="text-xs mono tracking-[0.2em] text-muted-foreground">// WHAT WE COLLECT</h2>
+        <h2 className="text-xs mono tracking-[0.2em] text-muted-foreground">// HOW MODESTACK WORKS</h2>
         <p>
-          Nothing. ModeStack has no accounts, no sign-in, and no server-side profile. We do not
-          collect, transmit, sell, or share personal information.
+          Normal typed use of ModeStack — the situation text you enter, your mode library, your
+          favorites, and your Vault data — is processed locally in your browser. ModeStack itself
+          does not collect, transmit, sell, or share this information, and no prompt or situation
+          text is sent to any AI service. Recommendations are computed entirely on your own device.
         </p>
 
-        <h2 className="text-xs mono tracking-[0.2em] text-muted-foreground pt-2">// WHAT IS STORED ON YOUR DEVICE</h2>
+        <h2 className="text-xs mono tracking-[0.2em] text-muted-foreground pt-2">// WHAT IS STORED LOCALLY</h2>
         <ul className="list-disc pl-5 space-y-1">
           <li>Your mode library, including any modes you add or edit.</li>
           <li>Your saved favorite stacks and notes.</li>
           <li>Text you type or dictate into the situation box while the app is open.</li>
         </ul>
         <p>
-          This data lives in your browser or app local storage on your own device. It is never
+          This data is stored locally in your browser's storage on your own device. It is never
           uploaded to us. Clearing your browser data, or uninstalling the app, deletes it
           permanently. You can also export it yourself at any time as a CSV file from the Vault
           screen.
         </p>
 
-        <h2 className="text-xs mono tracking-[0.2em] text-muted-foreground pt-2">// ANALYTICS & THIRD PARTIES</h2>
+        <h2 className="text-xs mono tracking-[0.2em] text-muted-foreground pt-2">// ANALYTICS & TRACKING</h2>
         <p>
-          ModeStack contains no analytics, no advertising SDKs, no crash reporting, and no
-          third-party trackers. It does not use cookies for tracking. Recommendations are computed
-          entirely on your device — no prompt or situation text is sent to any AI service.
-        </p>
-        <p>
-          The web version loads a web font from Google Fonts, which means your IP address is visible
-          to that provider as part of serving the font. No other outbound request is made.
+          ModeStack contains no analytics, no advertising SDKs, no crash reporting, no accounts, and
+          no third-party trackers. It does not use cookies for tracking. No third-party resources
+          or scripts are loaded during normal use.
         </p>
 
-        <h2 className="text-xs mono tracking-[0.2em] text-muted-foreground pt-2">// VOICE INPUT</h2>
+        <h2 className="text-xs mono tracking-[0.2em] text-muted-foreground pt-2">// VOICE INPUT (OPTIONAL)</h2>
         <p>
-          The optional microphone button uses your device or browser's built-in speech recognition.
-          Depending on your platform, that speech may be processed by your operating system or
-          browser vendor under their privacy policy. ModeStack never stores or transmits audio, and
-          the microphone is only active while you explicitly hold the recording state on.
+          If you choose to use the microphone button, ModeStack uses your browser or operating
+          system's built-in speech recognition. Depending on your platform, that speech may be
+          processed by your operating system or browser vendor under their own privacy policy.
+          ModeStack itself never stores or transmits audio, and the microphone is only active while
+          you explicitly keep recording turned on. If you only type, none of this applies.
+        </p>
+
+        <h2 className="text-xs mono tracking-[0.2em] text-muted-foreground pt-2">// HOSTING</h2>
+        <p>
+          When you load the ModeStack website, the hosting provider that serves it may receive
+          ordinary technical web-server information, such as your IP address and standard request or
+          access logs. This is typical of any website you visit and is governed by the hosting
+          provider's practices. It is unrelated to the ModeStack content you create.
         </p>
 
         <h2 className="text-xs mono tracking-[0.2em] text-muted-foreground pt-2">// CHILDREN</h2>

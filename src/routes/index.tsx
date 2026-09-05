@@ -245,7 +245,7 @@ function QuickView({ rec, onSave }: { rec: Recommendation; onSave: () => void })
       <div className="hud-panel hud-corner p-5 space-y-4 border-primary/40">
         <div className="space-y-2">
           <DecorativeHeading>Core</DecorativeHeading>
-          <div className="flex items-start justify-between gap-2">
+          <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
               <h4 className="mono text-xl text-foreground">{rec.primary.mode}</h4>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
@@ -291,9 +291,9 @@ function QuickView({ rec, onSave }: { rec: Recommendation; onSave: () => void })
         <SectionLabel>COMBINED STACK</SectionLabel>
         <div className="mono text-sm text-foreground">{combinedStack}</div>
         <ConfidenceRow label="Combined Stack Confidence" value={rec.stackConfidence} />
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <CopyButton value={rec.combinedPrompt} label="Copy Combined Prompt" />
-          <Button variant="outline" onClick={onSave} className="mono tracking-wider flex-1">
+          <Button variant="outline" onClick={onSave} className="mono tracking-wider flex-1 min-w-[10rem]">
             <Star className="h-4 w-4 mr-2" />
             SAVE STACK
           </Button>

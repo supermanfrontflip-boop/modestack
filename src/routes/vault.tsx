@@ -212,9 +212,9 @@ function VaultPage() {
             className="hud-panel border-border px-3 [&[data-state=open]]:border-primary/40"
           >
             <AccordionTrigger className="hover:no-underline py-3">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="mono text-sm text-foreground truncate">{m.mode}</span>
-                <div className="flex items-center gap-1 ml-auto pr-2">
+              <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                <span className="mono text-sm text-foreground truncate min-w-0">{m.mode}</span>
+                <div className="flex flex-wrap items-center gap-1 ml-auto pr-2 min-w-0">
                   <CategoryTag category={m.category} />
                   <IntensityPill intensity={m.intensity} />
                 </div>

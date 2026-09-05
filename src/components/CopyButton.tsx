@@ -64,14 +64,14 @@ export function CopyButton({
       variant="outline"
       size={size}
       onClick={handleCopy}
-      className={cn("mono tracking-wider", className)}
+      className={cn("mono tracking-wider max-w-full min-w-0", className)}
     >
       {copied ? (
-        <Check className="h-3.5 w-3.5" />
+        <Check className="h-3.5 w-3.5 flex-shrink-0" />
       ) : (
-        <Copy className="h-3.5 w-3.5" />
+        <Copy className="h-3.5 w-3.5 flex-shrink-0" />
       )}
-      <span className="ml-1.5">
+      <span className="ml-1.5 truncate">
         {copied ? "COPIED" : label.toUpperCase()}
       </span>
     </Button>
